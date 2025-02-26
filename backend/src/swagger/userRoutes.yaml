@@ -1,0 +1,519 @@
+openapi: 3.0.0
+info:
+  title: Sistema de Gestión de Abogados - API
+  version: 1.0.0
+  description: |
+    API completa para el sistema de gestión de abogados.
+    Incluye autenticación, gestión de usuarios, perfiles y registro de actividades.
+
+tags:
+  - name: Autenticación
+    description: Endpoints de login y manejo de sesiones
+  - name: Usuarios
+    description: Gestión y administración de usuarios
+  - name: Perfil
+    description: Manejo de perfiles de usuario
+  - name: Actividades
+    description: Registro y consulta de actividades
+  - name: Validaciones
+    description: Endpoints de validación de datos
+  - name: Exportación
+    description: Exportación de datos en diferentes formatos
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          example: "juan@ejemplo.com"
+        cedula:
+          type: string
+          example: "1234567890"
+          description: "Cédula ecuatoriana válida"
+        telefono:
+          type: string
+          example: "0991234567"
+        domicilio:
+          type: string
+          example: "Av. Principal 123"
+        rol:
+          type: string
+          enum: [ADMIN, COLABORADOR]
+          example: "COLABORADOR"
+        isActive:
+          type: boolean
+          example: true
+        estadoProfesional:
+          type: string
+          enum: [ESTUDIANTE, GRADUADO, MAESTRIA]
+          example: "GRADUADO"
+        numeroMatricula:
+          type: string
+          example: "MAT-123456"
+        universidad:
+          type: string
+          example: "Universidad Central del Ecuador"
+        photoUrl:
+          type: string
+          example: "/uploads/profile-photos/user-123.jpg"
+        isProfileCompleted:
+          type: boolean
+          example: true
+        isFirstLogin:
+          type: boolean
+          example: false
+        lastLogin:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        action:
+          type: string
+          example: "LOGIN"
+        description:
+          type: string
+        ipAddress:
+          type: string
+          example: "192.168.1.1"
+        userAgent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/User'
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+          example: "Juan Pérez"
+        cedula:
+          type: string
+          example: "1234567890"
+          description: "Cédula ecuatoriana válida"
+        telefono:
+          type: string
+          example: "0991234567"
+        domicilio:
+          type: string
+          example: "Av. Principal 123"
+        estadoProfesional:
+          type: string
+          enum: [ESTUDIANTE, GRADUADO, MAESTRIA]
+          example: "GRADUADO"
+        numeroMatricula:
+          type: string
+          example: "MAT-123456"
+        universidad:
+          type: string
+          example: "Universidad Central del Ecuador"
+
+    ProfileUpdateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Perfil actualizado exitosamente"
+        user:
+          $ref: '#/components/schemas/User'
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "Error al actualizar el perfil"
+        error:
+          type: string
+          enum: [INVALID_CEDULA, DUPLICATE_ENTRY, INVALID_DATA]
+          example: "INVALID_CEDULA"
+
+paths:
+  /api/users/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión en el sistema
+      description: Autenticar usuario con email y contraseña
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "usuario@ejemplo.com"
+                password:
+                  type: string
+                  example: "Contraseña123!"
+      responses:
+        200:
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        401:
+          description: Credenciales inválidas
+        429:
+          description: Demasiados intentos de inicio de sesión
+
+  /api/users/validate/email:
+    post:
+      tags: [Validaciones]
+      summary: Validar email
+      description: Verifica si un email está disponible para registro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "usuario@ejemplo.com"
+      responses:
+        200:
+          description: Resultado de validación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isValid:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/users/validate/cedula:
+    post:
+      tags: [Validaciones]
+      summary: Validar cédula
+      description: Verifica si una cédula es válida y está disponible
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cedula
+              properties:
+                cedula:
+                  type: string
+                  example: "1234567890"
+      responses:
+        200:
+          description: Resultado de validación
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isValid:
+                    type: boolean
+                  message:
+                    type: string
+
+  /users/me:
+    get:
+      tags:
+        - Perfil
+      summary: Obtener perfil del usuario actual
+      description: Obtiene la información completa del perfil del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Perfil del usuario obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        401:
+          description: No autorizado - Token inválido o expirado
+        404:
+          description: Usuario no encontrado
+        500:
+          description: Error interno del servidor
+
+    put:
+      tags:
+        - Perfil
+      summary: Actualizar perfil del usuario actual
+      description: Actualiza la información del perfil del usuario autenticado
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+      responses:
+        200:
+          description: Perfil actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileUpdateResponse'
+        400:
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        401:
+          description: No autorizado - Token inválido o expirado
+        404:
+          description: Usuario no encontrado
+        500:
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /users/me/photo:
+    post:
+      tags:
+        - Perfil
+      summary: Actualizar foto de perfil
+      description: Sube y actualiza la foto de perfil del usuario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+                  description: "Archivo de imagen (jpg, png, gif)"
+      responses:
+        200:
+          description: Foto de perfil actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photoUrl:
+                    type: string
+                    example: "/uploads/profile-photos/user-123.jpg"
+        400:
+          description: Archivo inválido o formato no soportado
+        401:
+          description: No autorizado - Token inválido o expirado
+        500:
+          description: Error interno del servidor
+
+  /api/users/activity-logs:
+    get:
+      tags: [Actividades]
+      summary: Obtener registro de actividades
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: integer
+          description: Filtrar por ID de usuario
+        - in: query
+          name: action
+          schema:
+            type: string
+          description: Filtrar por tipo de acción
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 10
+      responses:
+        200:
+          description: Lista de actividades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivityLog'
+        403:
+          description: No autorizado
+        500:
+          description: Error del servidor
+
+  /api/users/profile/status:
+    get:
+      tags: [Perfil]
+      summary: Obtener estado del perfil
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Estado del perfil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isCompleted:
+                    type: boolean
+                  isFirstLogin:
+                    type: boolean
+                  pendingFields:
+                    type: array
+                    items:
+                      type: string
+
+  /api/users/profile/complete:
+    post:
+      tags: [Perfil]
+      summary: Completar perfil de usuario
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - nombre
+                - cedula
+                - telefono
+                - nivelEstudios
+              properties:
+                nombre:
+                  type: string
+                cedula:
+                  type: string
+                telefono:
+                  type: string
+                nivelEstudios:
+                  type: string
+                  enum: [ESTUDIANTE, GRADUADO, MAESTRIA]
+                universidad:
+                  type: string
+      responses:
+        200:
+          description: Perfil completado exitosamente
+
+  /api/users/force-password-change:
+    post:
+      tags: [Perfil]
+      summary: Forzar cambio de contraseña
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        200:
+          description: Contraseña actualizada exitosamente
+
+  /api/users/export/excel:
+    get:
+      tags: [Exportación]
+      summary: Exportar usuarios a Excel
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Archivo Excel generado
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+
+  /api/users/export/pdf:
+    get:
+      tags: [Exportación]
+      summary: Exportar usuarios a PDF
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Archivo PDF generado
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+# ... más endpoints 

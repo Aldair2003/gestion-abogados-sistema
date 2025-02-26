@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  COLABORADOR
+}
+
+enum EstadoProfesional {
+  ESTUDIANTE
+  GRADUADO
+}
+
+model User {
+  id                 Int                @id @default(autoincrement())
+  email              String             @unique
+  password           String
+  nombre             String?
+  cedula             String?            @unique
+  telefono           String?
+  rol                UserRole           @default(COLABORADOR)
+  isActive           Boolean            @default(true)
+  isFirstLogin       Boolean            @default(true)
+  isProfileCompleted Boolean            @default(false)
+  isTemporaryPassword Boolean          @default(false)
+  estadoProfesional  EstadoProfesional?
+  universidad        String?
+  numeroMatricula    String?            @unique
+  domicilio          String?
+  lastLogin          DateTime?
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  photoUrl           String?            // URL de la foto de perfil
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  activityLogs       ActivityLog[]
+  notifications      Notification[]
+  permissions        UserPermission[]
+
+  @@map("users")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  nombre      String           @unique
+  descripcion String
+  modulo      String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  users       UserPermission[]
+}
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       Int
+  permissionId Int
+  user         User       @relation(fields: [userId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([userId, permissionId])
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Province {
+  id        Int      @id @default(autoincrement())
+  codigo    String   @unique
+  nombre    String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String
+  message   String
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+}
