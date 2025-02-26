@@ -161,9 +161,9 @@ export const specs = {
           details: { 
             type: 'object',
             properties: {
-              description: { type: 'string' },
+          description: { type: 'string' },
               ipAddress: { type: 'string' },
-              userAgent: { type: 'string' },
+          userAgent: { type: 'string' },
               metadata: { type: 'object' }
             }
           },
@@ -595,6 +595,127 @@ export const specs = {
           },
           401: {
             description: 'No autorizado'
+          }
+        }
+      },
+      put: {
+        tags: ['Perfil'],
+        summary: 'Actualizar perfil personal',
+        description: 'Permite a un usuario actualizar su información personal sin requerir perfil completo',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'multipart/form-data': {
+              schema: {
+                type: 'object',
+                properties: {
+                  nombre: {
+                    type: 'string',
+                    description: 'Nombre completo del usuario'
+                  },
+                  cedula: {
+                    type: 'string',
+                    description: 'Número de cédula (debe ser válido)'
+                  },
+                  telefono: {
+                    type: 'string',
+                    description: 'Número de teléfono (formato: 09XXXXXXXX)'
+                  },
+                  domicilio: {
+                    type: 'string',
+                    description: 'Dirección de domicilio'
+                  },
+                  estadoProfesional: {
+                    type: 'string',
+                    enum: ['ESTUDIANTE', 'GRADUADO'],
+                    description: 'Estado profesional del usuario'
+                  },
+                  numeroMatricula: {
+                    type: 'string',
+                    description: 'Número de matrícula profesional'
+                  },
+                  universidad: {
+                    type: 'string',
+                    description: 'Universidad donde estudia o estudió'
+                  },
+                  photo: {
+                    type: 'string',
+                    format: 'binary',
+                    description: 'Foto de perfil (JPG o PNG)'
+                  }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Perfil actualizado exitosamente',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'success'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'Perfil actualizado correctamente'
+                    },
+                    data: {
+                      $ref: '#/components/schemas/User'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '400': {
+            description: 'Error de validación',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      example: 'error'
+                    },
+                    message: {
+                      type: 'string',
+                      example: 'La cédula ingresada no es válida'
+                    },
+                    error: {
+                      type: 'string',
+                      example: 'INVALID_CEDULA'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': {
+            description: 'No autorizado',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/Error'
+                }
+              }
+            }
+          },
+          '500': {
+            description: 'Error interno del servidor',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/Error'
+                }
+              }
+            }
           }
         }
       }
@@ -1454,7 +1575,7 @@ export const specs = {
             description: 'Lista de actividades',
             content: {
               'application/json': {
-                schema: {
+            schema: {
                   type: 'object',
                   properties: {
                     logs: {
@@ -1516,8 +1637,8 @@ export const specs = {
                     totalActivities: { type: 'integer' },
                     todayActivities: { type: 'integer' },
                     topActions: {
-                      type: 'array',
-                      items: {
+                  type: 'array',
+                  items: {
                         type: 'object',
                         properties: {
                           action: { type: 'string' },
@@ -1792,8 +1913,8 @@ export const specs = {
                 schema: {
                   type: 'array',
                   items: {
-                    type: 'object',
-                    properties: {
+                  type: 'object',
+                  properties: {
                       id: { type: 'integer' },
                       nombre: { type: 'string' },
                       asignado: { type: 'boolean' }
@@ -1839,12 +1960,12 @@ export const specs = {
                       type: 'integer'
                     },
                     description: 'IDs de los permisos a asignar'
+                    }
                   }
                 }
               }
             }
-          }
-        },
+          },
         responses: {
           200: {
             description: 'Permisos actualizados exitosamente',
@@ -1903,21 +2024,21 @@ export const specs = {
             name: 'id',
             in: 'path',
             required: true,
-            schema: {
-              type: 'integer'
+            schema: { 
+              type: 'integer' 
             }
           }
         ],
         requestBody: {
           required: true,
-          content: {
-            'application/json': {
-              schema: {
+            content: {
+              'application/json': {
+                schema: {
                 $ref: '#/components/schemas/UserUpdateData'
+                }
               }
             }
-          }
-        },
+          },
         responses: {
           200: {
             description: 'Usuario actualizado exitosamente',
@@ -1925,12 +2046,12 @@ export const specs = {
               'application/json': {
                 schema: {
                   $ref: '#/components/schemas/User'
+                    }
+                  }
                 }
               }
             }
-          }
-        }
-      },
+          },
       delete: {
         tags: ['Users'],
         summary: 'Eliminar usuario',
@@ -1941,7 +2062,7 @@ export const specs = {
             name: 'id',
             in: 'path',
             required: true,
-            schema: {
+                schema: {
               type: 'integer'
             }
           }
@@ -1949,10 +2070,10 @@ export const specs = {
         responses: {
           200: {
             description: 'Usuario eliminado exitosamente'
-          }
-        }
-      }
-    },
+                }
+              }
+            }
+          },
     '/stats/users': {
       get: {
         tags: ['Stats'],
@@ -2010,6 +2131,7 @@ export const specs = {
                           count: { type: 'integer' }
                         }
                       }
+                      }
                     }
                   }
                 }
@@ -2017,8 +2139,7 @@ export const specs = {
             }
           }
         }
-      }
-    },
+      },
     '/api/colaborador/cantones': {
       get: {
         tags: ['Colaborador'],
@@ -2028,17 +2149,17 @@ export const specs = {
         responses: {
           200: {
             description: 'Lista de cantones',
-            content: {
-              'application/json': {
-                schema: {
+          content: {
+            'application/json': {
+              schema: {
                   type: 'array',
                   items: { $ref: '#/components/schemas/Canton' }
+                  }
                 }
               }
             }
           }
-        }
-      },
+        },
       post: {
         tags: ['Colaborador'],
         summary: 'Crear nuevo cantón',
@@ -2046,8 +2167,8 @@ export const specs = {
         security: [{ bearerAuth: [] }],
         requestBody: {
           required: true,
-          content: {
-            'application/json': {
+            content: {
+              'application/json': {
               schema: { $ref: '#/components/schemas/CantonCreate' }
             }
           }
@@ -2058,12 +2179,12 @@ export const specs = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/Canton' }
+                    }
+                  }
+                }
               }
             }
-          }
-        }
-      }
-    },
+          },
     '/api/colaborador/personas': {
       get: {
         tags: ['Colaborador'],
@@ -2076,14 +2197,14 @@ export const specs = {
             content: {
               'application/json': {
                 schema: {
-                  type: 'array',
+                      type: 'array',
                   items: { $ref: '#/components/schemas/Persona' }
-                }
               }
             }
           }
         }
-      },
+      }
+    },
       post: {
         tags: ['Colaborador'],
         summary: 'Crear nueva persona',
@@ -2103,12 +2224,12 @@ export const specs = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/Persona' }
+                  }
+                }
               }
             }
           }
-        }
-      }
-    },
+        },
     '/api/colaborador/personas/{id}': {
       get: {
         tags: ['Colaborador'],
@@ -2129,12 +2250,12 @@ export const specs = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/Persona' }
+                }
               }
             }
           }
         }
-      }
-    },
+      },
     '/api/colaborador/procesos': {
       get: {
         tags: ['Colaborador'],
@@ -2149,12 +2270,12 @@ export const specs = {
                 schema: {
                   type: 'array',
                   items: { $ref: '#/components/schemas/Proceso' }
-                }
               }
             }
           }
         }
-      },
+      }
+    },
       post: {
         tags: ['Colaborador'],
         summary: 'Crear nuevo proceso',
@@ -2174,12 +2295,12 @@ export const specs = {
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/Proceso' }
+                  }
+                }
               }
             }
           }
-        }
-      }
-    },
+        },
     '/api/colaborador/procesos/{id}': {
       get: {
         tags: ['Colaborador'],
@@ -2233,8 +2354,8 @@ export const specs = {
                       items: { $ref: '#/components/schemas/Proceso' }
                     },
                     estadisticas: {
-                      type: 'object',
-                      properties: {
+                  type: 'object',
+                  properties: {
                         totalCantones: { type: 'integer' },
                         totalPersonas: { type: 'integer' },
                         totalProcesos: { type: 'integer' },
