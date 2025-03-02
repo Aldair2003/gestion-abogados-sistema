@@ -1,0 +1,45 @@
+@layer components {
+  /* Estilos para modo dark */
+  .dark {
+    /* Contenedor principal */
+    .react-datepicker {
+      @apply bg-dark-800 border-dark-600;
+    }
+
+    /* Header */
+    .react-datepicker__header {
+      @apply bg-dark-700 border-dark-600;
+    }
+
+    /* Mes y año */
+    .react-datepicker__current-month,
+    .react-datepicker__day-name {
+      @apply text-gray-200;
+    }
+
+    /* Días */
+    .react-datepicker__day {
+      @apply text-gray-300 hover:bg-dark-600 hover:text-white;
+    }
+
+    /* Día seleccionado */
+    .react-datepicker__day--selected {
+      @apply bg-primary-600 text-white hover:bg-primary-700;
+    }
+
+    /* Día actual */
+    .react-datepicker__day--today {
+      @apply border-2 border-primary-500;
+    }
+
+    /* Días fuera del mes */
+    .react-datepicker__day--outside-month {
+      @apply text-gray-600;
+    }
+
+    /* Input */
+    .react-datepicker__input-container input {
+      @apply bg-dark-700 border-dark-600 text-white;
+    }
+  }
+} 
