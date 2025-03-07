@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, RequestHandler } from 'express';
 import jwt from 'jsonwebtoken';
-import { UserRole } from '@prisma/client';
+import { UserRole, ActivityCategory } from '@prisma/client';
 import { logActivity } from '../services/logService';
 import { ApiResponse, ApiErrorCode } from '../types/api';
 import { prisma } from '../lib/prisma';
@@ -42,10 +42,8 @@ export const authenticateToken = async (
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-      await logActivity({
-        userId: -1,
-        action: 'UNAUTHORIZED_ACCESS',
-        category: 'SESSION',
+      await logActivity(-1, 'UNAUTHORIZED_ACCESS', {
+        category: ActivityCategory.AUTH,
         details: {
           metadata: {
             ipAddress: req.ip,
@@ -75,10 +73,8 @@ export const authenticateToken = async (
     const maxInactivityTime = 30 * 60 * 1000; // 30 minutos
 
     if (inactivityTime > maxInactivityTime) {
-      await logActivity({
-        userId: decoded.id,
-        action: 'SESSION_EXPIRED',
-        category: 'SESSION',
+      await logActivity(decoded.id, 'SESSION_EXPIRED', {
+        category: ActivityCategory.AUTH,
         details: {
           metadata: {
             reason: 'Inactividad',
@@ -115,10 +111,8 @@ export const authenticateToken = async (
     console.log('User from database:', user);
 
     if (!user || !user.isActive) {
-      await logActivity({
-        userId: decoded.id,
-        action: 'UNAUTHORIZED_ACCESS',
-        category: 'SESSION',
+      await logActivity(decoded.id, 'UNAUTHORIZED_ACCESS', {
+        category: ActivityCategory.AUTH,
         details: {
           metadata: {
             ipAddress: req.ip,
@@ -166,10 +160,8 @@ export const authenticateToken = async (
     // Solo registrar actividad si no es un error de token malformado
     if (!(error instanceof jwt.JsonWebTokenError)) {
       try {
-        await logActivity({
-          userId: -1,
-          action: 'UNAUTHORIZED_ACCESS',
-          category: 'SESSION',
+        await logActivity(-1, 'UNAUTHORIZED_ACCESS', {
+          category: ActivityCategory.AUTH,
           details: {
             metadata: {
               ipAddress: req.ip,
@@ -218,10 +210,8 @@ export const isAdmin = async (
       };
       
       if (req.user) {
-        await logActivity({
-          userId: req.user.id,
-          action: 'UNAUTHORIZED_ACCESS',
-          category: 'SESSION',
+        await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
+          category: ActivityCategory.AUTH,
           details: {
             metadata: {
               requiredRole: UserRole.ADMIN,
@@ -268,10 +258,8 @@ export const isColaborador = async (
     };
 
     if (req.user) {
-      await logActivity({
-        userId: req.user.id,
-        action: 'UNAUTHORIZED_ACCESS',
-        category: 'SESSION',
+      await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
+        category: ActivityCategory.AUTH,
         details: {
           metadata: {
             requiredRole: UserRole.COLABORADOR,
@@ -324,10 +312,8 @@ export const withRole = (allowedRoles: UserRole[]) => {
       };
 
       if (req.user) {
-        await logActivity({
-          userId: req.user.id,
-          action: 'UNAUTHORIZED_ACCESS',
-          category: 'SESSION',
+        await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
+          category: ActivityCategory.AUTH,
           details: {
             metadata: {
               requiredRoles: allowedRoles,

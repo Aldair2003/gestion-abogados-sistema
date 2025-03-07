@@ -5,7 +5,7 @@ import { validateCedula, validatePhone } from '../utils/validators';
 import { logActivity } from '../services/logService';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../types/notification';
-import { Prisma } from '@prisma/client';
+import { Prisma, ActivityCategory } from '@prisma/client';
 
 export const getUserProfile = async (req: RequestWithUser, res: Response) => {
   try {
@@ -67,11 +67,18 @@ export const updateUserProfile = async (req: RequestWithUser, res: Response) => 
       }
     });
 
-    await logActivity({
-      userId: req.user.id,
-      action: 'UPDATE_PROFILE',
+    await logActivity(req.user.id, 'UPDATE_PROFILE', {
+      category: ActivityCategory.PROFILE,
       details: {
-        changes: profileData
+        description: 'Actualización de perfil de usuario',
+        changes: {
+          before: req.user,
+          after: updatedUser
+        },
+        metadata: {
+          updatedFields: Object.keys(profileData),
+          timestamp: new Date().toISOString()
+        }
       }
     });
 
@@ -213,12 +220,18 @@ export const updatePersonalProfile = async (
     });
 
     // Registrar actividad
-    await logActivity({
-      userId,
-      action: 'UPDATE_PERSONAL_PROFILE',
+    await logActivity(userId, 'UPDATE_PERSONAL_PROFILE', {
+      category: ActivityCategory.PROFILE,
       details: {
-        changes: updateData,
-        timestamp: new Date()
+        description: 'Actualización de perfil personal',
+        changes: {
+          before: existingUser,
+          after: updatedUser
+        },
+        metadata: {
+          updatedFields: Object.keys(updateData),
+          timestamp: new Date().toISOString()
+        }
       }
     });
 

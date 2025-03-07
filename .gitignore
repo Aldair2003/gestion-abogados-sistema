@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+frontend/node_modules/
+backend/node_modules/
 .pnp/
 .pnp.js
 
@@ -9,11 +11,15 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
+frontend/.env
+backend/.env
 
 # Build
 /dist
 /build
 /out
+frontend/build/
+backend/dist/
 
 # Debug
 npm-debug.log*
@@ -33,18 +39,35 @@ Thumbs.db
 # Uploads
 uploads/
 /uploads
+backend/uploads/
 
 # Prisma
 /prisma/migrations/
+backend/prisma/migrations/
 *.db
 *.db-journal
 
 # Testing
 /coverage
-
-# Production
-/build
+frontend/coverage/
+backend/coverage/
 
 # Logs
 logs
-*.log 
+*.log
+backend/logs/
+
+# Specific to backend
+backend/.sequelizerc
+backend/migrations/
+
+# Specific to frontend
+frontend/.cache/
+frontend/.next/
+
+# Misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local 

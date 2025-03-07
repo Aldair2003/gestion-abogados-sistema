@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiResponse, ApiErrorCode } from '../types/api';
-import { Prisma } from '@prisma/client';
+import { Prisma, ActivityCategory } from '@prisma/client';
 import { logActivity } from '../services/logService';
 
 // Tipos de error personalizados
@@ -76,18 +76,24 @@ export const errorHandler = async (
   }
 
   // Registrar el error
-  await logActivity({
-    userId: (req as any).user?.id || 0,
-    action: 'ERROR',
-    details: {
-      path: req.path,
-      method: req.method,
-      errorName: error.name,
-      errorMessage: error.message,
-      statusCode,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  await logActivity(
+    (req as any).user?.id || 0,
+    'ERROR',
+    {
+      category: ActivityCategory.SYSTEM,
+      details: {
+        description: 'Error en la aplicación',
+        metadata: {
+          path: req.path,
+          method: req.method,
+          errorName: error.name,
+          errorMessage: error.message,
+          statusCode,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }
+      }
     }
-  });
+  );
 
   res.status(statusCode).json(response);
 }; 

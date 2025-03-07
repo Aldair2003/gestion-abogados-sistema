@@ -3,8 +3,9 @@ import { login, register, forgotPassword, resetPassword } from '../controllers/u
 import { isAuthenticated, RequestWithUser } from '../middlewares/auth';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
-import { ApiErrorCode } from '../utils/ApiErrorCode';
+import { ApiErrorCode } from '../types/api';
 import { logActivity } from '../services/logService';
+import { ActivityCategory } from '@prisma/client';
 
 const router = Router();
 
@@ -93,10 +94,8 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
     );
 
     // Registrar actividad
-    await logActivity({
-      userId: user.id,
-      action: 'SESSION_REFRESHED',
-      category: 'SESSION',
+    await logActivity(user.id, 'SESSION_REFRESHED', {
+      category: ActivityCategory.AUTH,
       details: {
         description: 'Sesión renovada exitosamente',
         metadata: {
@@ -141,10 +140,8 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
 router.post('/logout', isAuthenticated, async (req: RequestWithUser, res: Response) => {
   try {
     if (req.user) {
-      await logActivity({
-        userId: req.user.id,
-        action: 'LOGOUT',
-        category: 'SESSION',
+      await logActivity(req.user.id, 'LOGOUT', {
+        category: ActivityCategory.AUTH,
         details: {
           metadata: {
             ipAddress: req.ip,

@@ -17,6 +17,17 @@ enum EstadoProfesional {
   GRADUADO
 }
 
+enum ActivityCategory {
+  AUTH
+  USER
+  PROFILE
+  SYSTEM
+  PERMISSION
+  ADMINISTRATIVE
+  ACCOUNT_STATUS
+  SESSION
+}
+
 model User {
   id                 Int                @id @default(autoincrement())
   email              String             @unique
@@ -28,7 +39,8 @@ model User {
   isActive           Boolean            @default(true)
   isFirstLogin       Boolean            @default(true)
   isProfileCompleted Boolean            @default(false)
-  isTemporaryPassword Boolean          @default(false)
+  isTemporaryPassword Boolean           @default(false)
+  tokenVersion       Int                @default(0)
   estadoProfesional  EstadoProfesional?
   universidad        String?
   numeroMatricula    String?            @unique
@@ -69,12 +81,20 @@ model UserPermission {
 }
 
 model ActivityLog {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  action    String
-  details   Json?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  id          Int              @id @default(autoincrement())
+  userId      Int
+  action      String
+  category    ActivityCategory
+  targetId    Int?
+  details     Json?
+  isImportant Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  user        User            @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([category])
+  @@index([action])
+  @@index([isImportant])
 }
 
 model Province {
