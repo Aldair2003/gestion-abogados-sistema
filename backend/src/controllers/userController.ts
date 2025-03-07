@@ -9,16 +9,17 @@ import { validateCedula, validatePhone } from '../utils/validators';
 import { prisma } from '../lib/prisma';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma, UserRole, ActivityCategory } from '@prisma/client';
 import { logActivity } from '../services/logService';
-import { UserFindUniqueArgs } from '../types/prisma';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../types/notification';
 import { 
   RequestWithUser,
   RegisterRequest,
-  EstadoProfesional
+  EstadoProfesional,
+  UserWithId
 } from '../types/user';
+import { ApiErrorCode } from '../types/api';
 
 dotenv.config();
 
@@ -33,9 +34,12 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
     const { email, rol } = req.body;
     console.log('Iniciando registro de usuario:', { email, rol });
 
+    // Normalizar el email a minúsculas
+    const normalizedEmail = email.toLowerCase();
+
     // Validar email
-    if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
-      console.warn('Intento de registro con email inválido:', email);
+    if (!normalizedEmail || !normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      console.warn('Intento de registro con email inválido:', normalizedEmail);
       res.status(400).json({ 
         message: 'Email inválido',
         error: 'El formato del email no es válido'
@@ -56,11 +60,11 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
 
     // Verificar si el usuario ya existe
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: normalizedEmail }
     });
 
     if (existingUser) {
-      console.warn('Intento de registro con email existente:', email);
+      console.warn('Intento de registro con email existente:', normalizedEmail);
       res.status(400).json({ 
         message: 'Usuario ya existe',
         error: 'El email ya está registrado en el sistema'
@@ -76,12 +80,13 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
     // Crear usuario solo con los campos necesarios
     const newUser = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         rol: rol as UserRole,
         isActive: true,
         isFirstLogin: true,
-        isProfileCompleted: false
+        isProfileCompleted: false,
+        isTemporaryPassword: true
       }
     });
 
@@ -89,22 +94,24 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
 
     // Enviar email con credenciales temporales
     try {
-      await sendWelcomeEmail(email, temporalPassword);
-      console.log('Email de bienvenida enviado:', email);
+      await sendWelcomeEmail(normalizedEmail, temporalPassword);
+      console.log('Email de bienvenida enviado:', normalizedEmail);
     } catch (emailError) {
       console.error('Error al enviar email de bienvenida:', emailError);
       // No devolvemos error al cliente, pero registramos el problema
     }
 
     // Registrar actividad
-    await logActivity({
-      userId: newUser.id,
-      action: 'USER_CREATED',
+    await logActivity(newUser.id, 'USER_CREATED', {
+      category: ActivityCategory.USER,
       details: {
-        createdBy: 'SYSTEM',
-        userEmail: email,
-        userRole: rol,
-        requiresProfileCompletion: true
+        description: 'Usuario creado exitosamente',
+        metadata: {
+          createdBy: 'SYSTEM',
+          userEmail: normalizedEmail,
+          userRole: rol,
+          requiresProfileCompletion: true
+        }
       }
     });
 
@@ -130,86 +137,139 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
-    console.log('Intento de login:', { email }); // No logear passwords
+    console.log('Intento de login:', { email });
 
-    const user = await prisma.user.findUnique({
-      where: { email }
+    // Normalizar el email
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log('Email normalizado:', normalizedEmail);
+
+    // Buscar usuario usando la instancia global de prisma
+    console.log('Buscando usuario en la base de datos...');
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: 'insensitive'
+        }
+      },
     });
 
-    console.log('Usuario encontrado:', user ? 'Sí' : 'No');
+    console.log('Búsqueda de usuario:', {
+      emailBuscado: normalizedEmail,
+      encontrado: !!user,
+      activo: user?.isActive
+    });
 
-    if (!user || !user.isActive) {
-      console.log('Usuario no encontrado o inactivo');
-      res.status(401).json({ message: 'Credenciales inválidas' });
+    if (!user) {
+      console.log('Usuario no encontrado');
+      res.status(401).json({
+        error: ApiErrorCode.UNAUTHORIZED,
+        message: 'Credenciales incorrectas. Por favor, verifique sus datos.',
+      });
       return;
     }
 
+    if (!user.isActive) {
+      console.log('Usuario desactivado');
+      res.status(401).json({
+        error: ApiErrorCode.ACCOUNT_DISABLED,
+        message: 'Su cuenta ha sido desactivada. Por favor, contacte al administrador.',
+      });
+      return;
+    }
+
+    // Validar contraseña
     const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('Password válido:', isValidPassword);
+    console.log('Validación de contraseña:', { isValid: isValidPassword });
 
     if (!isValidPassword) {
-      console.log('Password incorrecto');
-      res.status(401).json({ message: 'Credenciales inválidas' });
+      console.log('Contraseña inválida');
+      res.status(401).json({
+        error: ApiErrorCode.UNAUTHORIZED,
+        message: 'Credenciales incorrectas. Por favor, verifique sus datos.',
+      });
       return;
     }
 
-    // Actualizar último login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() }
-    });
+    // Generar tokens
+    const accessToken = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email,
+        rol: user.rol,
+        isFirstLogin: user.isFirstLogin,
+        isProfileCompleted: user.isProfileCompleted,
+        lastActivity: new Date().toISOString()
+      },
+      process.env.JWT_SECRET as string,
+      { expiresIn: '15m' }
+    );
 
-    // Determinar el estado del primer inicio de sesión y los pasos requeridos
-    const loginStatus = {
-      requiresPasswordChange: user.isFirstLogin,
-      requiresProfileCompletion: !user.isProfileCompleted,
-      nextStep: user.isFirstLogin ? 'PASSWORD_CHANGE' : 
-                !user.isProfileCompleted ? 'COMPLETE_PROFILE' : 
-                'NONE'
-    };
-
-    const token = jwt.sign(
+    const refreshToken = jwt.sign(
       { 
         id: user.id, 
         email: user.email, 
         rol: user.rol,
-        isFirstLogin: user.isFirstLogin,
-        isProfileCompleted: user.isProfileCompleted
+        tokenVersion: user.tokenVersion 
       },
-      process.env.JWT_SECRET!,
-      { expiresIn: '24h' }
+      process.env.JWT_REFRESH_SECRET as string,
+      { expiresIn: '7d' }
     );
 
-    console.log('Login exitoso, enviando respuesta');
-
-    // Registrar actividad de login
-    await logActivity({
-      userId: user.id,
-      action: 'LOGIN',
-      details: {
-        description: 'Inicio de sesión exitoso',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'],
-        loginStatus
+    // Actualizar último login y tokenVersion
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastLogin: new Date(),
+        tokenVersion: {
+          increment: 1
+        }
+      },
+      select: {
+        id: true,
+        email: true,
+        rol: true,
+        isFirstLogin: true,
+        isProfileCompleted: true,
+        tokenVersion: true,
+        nombre: true
       }
     });
 
+    // Registrar actividad
+    await logActivity(user.id, 'LOGIN', {
+      category: ActivityCategory.AUTH,
+      details: {
+        metadata: {
+          userEmail: user.email,
+          timestamp: new Date().toISOString()
+        }
+      }
+    });
+
+    const userResponse: UserWithId = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      nombre: updatedUser.nombre || '',
+      rol: updatedUser.rol,
+      isFirstLogin: updatedUser.isFirstLogin,
+      isProfileCompleted: updatedUser.isProfileCompleted,
+      tokenVersion: updatedUser.tokenVersion
+    };
+
+    console.log('Login exitoso:', { userId: user.id, email: user.email });
+
     res.json({
-      token,
-      user: {
-        id: user.id,
-        nombre: user.nombre,
-        email: user.email,
-        rol: user.rol,
-        isActive: user.isActive,
-        isFirstLogin: user.isFirstLogin,
-        isProfileCompleted: user.isProfileCompleted
-      },
-      loginStatus
+      user: userResponse,
+      token: accessToken,
+      refreshToken,
     });
   } catch (error) {
     console.error('Error en login:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    res.status(500).json({
+      error: ApiErrorCode.INTERNAL_ERROR,
+      message: 'Error interno del servidor',
+    });
   }
 };
 
@@ -253,21 +313,37 @@ export const changePassword = async (
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword }
-    });
-
-    await logActivity({
-      userId: userId,
-      action: 'CHANGE_PASSWORD',
-      details: {
-        description: 'Contraseña actualizada exitosamente',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+      data: { 
+        password: hashedPassword,
+        isTemporaryPassword: false,
+        updatedAt: new Date()
       }
     });
 
+    await logActivity(userId, 'CHANGE_PASSWORD', {
+      category: ActivityCategory.USER,
+      details: {
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString()
+        }
+      }
+    });
+
+    // Crear notificación
+    await createNotification(
+      userId,
+      NotificationType.PASSWORD_CHANGED,
+      'Has cambiado tu contraseña exitosamente',
+      {
+        timestamp: new Date().toISOString()
+      }
+    );
+
     res.status(200).json({ 
-      message: 'Contraseña actualizada exitosamente' 
+      message: 'Contraseña actualizada exitosamente',
+      isTemporaryPassword: false
     });
   } catch (error) {
     res.status(500).json({
@@ -301,15 +377,13 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     await sendPasswordResetEmail(user.email, resetToken);
 
-    await logActivity({
-      userId: user.id,
-      action: 'FORGOT_PASSWORD',
+    await logActivity(user.id, 'FORGOT_PASSWORD', {
+      category: ActivityCategory.USER,
       details: {
-        resetToken: resetToken,
-        resetTokenExpiry: resetTokenExpiry.toISOString()
-      },
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent']
+        metadata: {
+          userEmail: user.email
+        }
+      }
     });
 
     res.status(200).json({ 
@@ -339,7 +413,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       where: {
         resetToken: token,
         resetTokenExpiry: {
-          gt: new Date() // Usar gt (greater than) de Prisma en lugar de Op.gt
+          gt: new Date()
         }
       }
     });
@@ -354,23 +428,36 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       where: { id: user.id },
       data: {
         password: hashedPassword,
-        resetToken: null, // Usar null en lugar de undefined
-        resetTokenExpiry: null
+        resetToken: undefined,
+        resetTokenExpiry: undefined,
+        updatedAt: new Date()
       }
     });
 
-    await logActivity({
-      userId: user.id,
-      action: 'RESET_PASSWORD',
+    await logActivity(user.id, 'RESET_PASSWORD', {
+      category: ActivityCategory.USER,
       details: {
-        description: 'Contraseña actualizada exitosamente',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString(),
+          changes: {
+            before: {
+              hasResetToken: true,
+              resetTokenExpiry: user.resetTokenExpiry
+            },
+            after: {
+              hasResetToken: false,
+              resetTokenExpiry: undefined
+            }
+          }
+        }
       }
     });
 
     res.status(200).json({ message: 'Contraseña actualizada exitosamente' });
   } catch (error) {
+    console.error('Error al restablecer la contraseña:', error);
     res.status(500).json({ message: 'Error al restablecer la contraseña' });
   }
 };
@@ -412,13 +499,15 @@ export const updateUser = async (req: RequestWithUser, res: Response): Promise<v
       data: updateData
     });
 
-    await logActivity({
-      userId: updatedUser.id,
-      action: 'UPDATE_USER',
+    await logActivity(updatedUser.id, 'UPDATE_USER', {
+      category: ActivityCategory.USER,
       details: {
-        description: 'Información de usuario actualizada',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString(),
+          updatedFields: Object.keys(updateData)
+        }
       }
     });
 
@@ -439,40 +528,67 @@ export const updateUser = async (req: RequestWithUser, res: Response): Promise<v
 };
 
 // Desactivar usuario (soft delete)
-export const deactivateUser = async (req: Request, res: Response): Promise<void> => {
+export const deactivateUser = async (req: RequestWithUser, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    
+    const userId = parseInt(req.params.id);
+    const adminId = req.user!.id;
+
+    // Verificar que el usuario existe
     const user = await prisma.user.findUnique({
-      where: { id: Number(id) }
-    });
-    if (!user) {
-      res.status(404).json({ message: 'Usuario no encontrado' });
-      return;
-    }
-
-    await prisma.user.update({
-      where: { id: Number(id) },
-      data: { isActive: false }
-    });
-
-    await logActivity({
-      userId: Number(id),
-      action: 'DEACTIVATE_USER',
-      details: {
-        description: 'Usuario desactivado',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+      where: { id: userId },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        isActive: true
       }
     });
 
-    res.status(200).json({
-      message: 'Usuario desactivado exitosamente'
+    if (!user) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado'
+      });
+      return;
+    }
+
+    // Verificar que no se está desactivando a sí mismo
+    if (userId === adminId) {
+      res.status(400).json({
+        status: 'error',
+        message: 'No puedes desactivarte a ti mismo'
+      });
+      return;
+    }
+
+    // Desactivar usuario
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false }
+    });
+
+    // Registrar la actividad con información detallada
+    await logActivity(adminId, 'DEACTIVATE_USER', {
+      category: ActivityCategory.USER,
+      targetId: userId,
+      details: {
+        metadata: {
+          targetUserEmail: user.email
+        }
+      }
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Usuario desactivado correctamente',
+      data: updatedUser
     });
   } catch (error) {
+    console.error('Error al desactivar usuario:', error);
     res.status(500).json({
-      message: 'Error al desactivar usuario',
-      error: (error as Error).message
+      status: 'error',
+      message: 'Error al desactivar el usuario'
     });
   }
 };
@@ -532,7 +648,8 @@ export const getUsers = async (req: Request, res: Response) => {
           telefono: true,
           rol: true,
           isActive: true,
-          lastLogin: true
+          lastLogin: true,
+          photoUrl: true
         }
       }),
       prisma.user.count({ where })
@@ -577,8 +694,16 @@ export const getCurrentUser = async (req: RequestWithUser, res: Response): Promi
         id: true,
         nombre: true,
         email: true,
+        cedula: true,
+        telefono: true,
+        domicilio: true,
+        estadoProfesional: true,
+        numeroMatricula: true,
+        universidad: true,
         rol: true,
         isActive: true,
+        isProfileCompleted: true,
+        photoUrl: true,
         lastLogin: true
       }
     });
@@ -598,7 +723,7 @@ export const getCurrentUser = async (req: RequestWithUser, res: Response): Promi
 export const getUserDetails = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    
+
     const user = await prisma.user.findUnique({
       where: { id: Number(id) },
       include: {
@@ -606,25 +731,36 @@ export const getUserDetails = async (req: Request, res: Response): Promise<void>
           orderBy: {
             createdAt: 'desc'
           },
-          take: 10
-        },
-        permissions: {
           include: {
-            permission: true
+            user: {
+              select: {
+                nombre: true,
+                email: true
+              }
+            }
           }
         }
       }
-    } as UserFindUniqueArgs);
+    });
 
     if (!user) {
-      res.status(404).json({ message: 'Usuario no encontrado' });
+      res.status(404).json({ 
+        status: 'error',
+        message: 'Usuario no encontrado' 
+      });
       return;
     }
 
-    res.json(user);
+    res.json({
+      status: 'success',
+      data: user
+    });
   } catch (error) {
     console.error('Error al obtener detalles del usuario:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Error al obtener detalles del usuario' 
+    });
   }
 };
 
@@ -793,9 +929,8 @@ export const updateUserProfile = async (
     const updateData: Prisma.UserUpdateInput = {};
 
     // Solo actualizar los campos que vienen en el request
-    if (req.body.nombre) updateData.nombre = req.body.nombre.trim();
-    if (req.body.cedula) {
-      // Validar cédula solo si se está actualizando
+    if (req.body.nombre !== undefined) updateData.nombre = req.body.nombre || '';
+    if (req.body.cedula !== undefined) {
       if (!validateCedula(req.body.cedula)) {
         res.status(400).json({
           message: 'La cédula ingresada no es válida',
@@ -803,23 +938,19 @@ export const updateUserProfile = async (
         });
         return;
       }
-      // Verificar duplicado solo si la cédula cambió
-      if (req.body.cedula !== existingUser.cedula) {
-        const userWithCedula = await prisma.user.findUnique({
-          where: { cedula: req.body.cedula }
+      const userWithCedula = await prisma.user.findUnique({
+        where: { cedula: req.body.cedula }
+      });
+      if (userWithCedula && userWithCedula.id !== userId) {
+        res.status(400).json({
+          message: 'La cédula ya está registrada',
+          error: 'DUPLICATE_CEDULA'
         });
-        if (userWithCedula) {
-          res.status(400).json({
-            message: 'La cédula ya está registrada',
-            error: 'DUPLICATE_CEDULA'
-          });
-          return;
-        }
+        return;
       }
-      updateData.cedula = req.body.cedula.trim();
+      updateData.cedula = req.body.cedula || '';
     }
-    if (req.body.telefono) {
-      // Validar teléfono solo si se está actualizando
+    if (req.body.telefono !== undefined) {
       if (!validatePhone(req.body.telefono)) {
         res.status(400).json({
           message: 'El formato del teléfono no es válido (debe ser 09XXXXXXXX)',
@@ -827,12 +958,12 @@ export const updateUserProfile = async (
         });
         return;
       }
-      updateData.telefono = req.body.telefono.trim();
+      updateData.telefono = req.body.telefono || '';
     }
-    if (req.body.domicilio !== undefined) updateData.domicilio = req.body.domicilio?.trim() || null;
-    if (req.body.estadoProfesional !== undefined) updateData.estadoProfesional = req.body.estadoProfesional || null;
-    if (req.body.numeroMatricula !== undefined) updateData.numeroMatricula = req.body.numeroMatricula?.trim() || null;
-    if (req.body.universidad !== undefined) updateData.universidad = req.body.universidad?.trim() || null;
+    if (req.body.domicilio !== undefined) updateData.domicilio = req.body.domicilio || '';
+    if (req.body.estadoProfesional !== undefined) updateData.estadoProfesional = req.body.estadoProfesional;
+    if (req.body.numeroMatricula !== undefined) updateData.numeroMatricula = req.body.numeroMatricula || '';
+    if (req.body.universidad !== undefined) updateData.universidad = req.body.universidad || '';
 
     // Actualizar fecha de modificación
     updateData.updatedAt = new Date();
@@ -863,12 +994,18 @@ export const updateUserProfile = async (
     });
 
     // Registrar actividad
-    await logActivity({
-      userId,
-      action: 'UPDATE_PROFILE',
+    await logActivity(userId, 'UPDATE_PROFILE', {
+      category: ActivityCategory.PROFILE,
       details: {
-        changes: updateData,
-        timestamp: new Date()
+        description: 'Perfil actualizado',
+        metadata: {
+          timestamp: new Date().toISOString(),
+          updatedFields: Object.keys(updateData)
+        },
+        changes: {
+          before: existingUser,
+          after: updatedUser
+        }
       }
     });
 
@@ -932,8 +1069,17 @@ export const completeProfile = async (req: RequestWithUser & { body: {
       return;
     }
 
+    // Validar teléfono (10 dígitos)
+    if (!/^\d{10}$/.test(telefono)) {
+      res.status(400).json({
+        message: 'Formato de teléfono inválido. Debe contener 10 dígitos',
+        error: 'INVALID_PHONE'
+      });
+      return;
+    }
+
     // Validar que la universidad sea proporcionada si es estudiante
-    if (estadoProfesional === 'ESTUDIANTE' && !universidad) {
+    if (estadoProfesional === EstadoProfesional.ESTUDIANTE && !universidad) {
       res.status(400).json({ 
         message: 'La universidad es requerida para estudiantes',
         error: 'MISSING_UNIVERSITY'
@@ -941,43 +1087,76 @@ export const completeProfile = async (req: RequestWithUser & { body: {
       return;
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: req.user.id },
-      data: {
-        nombre,
-        cedula,
-        telefono,
-        domicilio,
-        estadoProfesional,
-        numeroMatricula,
-        universidad,
-        isProfileCompleted: true
+    // Validar matrícula para graduados
+    if (estadoProfesional === EstadoProfesional.GRADUADO) {
+      if (!numeroMatricula) {
+        res.status(400).json({
+          message: 'El número de matrícula es requerido para graduados',
+          error: 'MISSING_MATRICULA'
+        });
+        return;
       }
-    });
 
-    // Registrar actividad
-    await logActivity({
-      userId: req.user.id,
-      action: 'PROFILE_COMPLETED',
-      details: {
-        timestamp: new Date()
+      // Validar formato base de la matrícula (XX-XXXX-XXX)
+      const matriculaBase = numeroMatricula.substring(0, 11);
+      if (!/^[A-Za-z0-9]{2}-[A-Za-z0-9]{4}-[A-Za-z0-9]{3}/.test(matriculaBase)) {
+        res.status(400).json({
+          message: 'Formato de matrícula inválido. Debe comenzar con XX-XXXX-XXX',
+          error: 'INVALID_MATRICULA_FORMAT'
+        });
+        return;
       }
-    });
+    }
 
-    // Crear notificación
-    await createNotification(
-      req.user.id,
-      NotificationType.PROFILE_COMPLETED,
-      'Has completado tu perfil exitosamente',
-      {
-        timestamp: new Date()
-      }
-    );
+    try {
+      const updatedUser = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          nombre,
+          cedula,
+          telefono,
+          domicilio,
+          estadoProfesional,
+          numeroMatricula,
+          universidad,
+          isProfileCompleted: true
+        }
+      });
 
-    res.json(updatedUser);
+      // Registrar actividad
+      await logActivity(req.user.id, 'PROFILE_COMPLETED', {
+        category: ActivityCategory.PROFILE,
+        details: {
+          metadata: {
+            timestamp: new Date().toISOString()
+          }
+        }
+      });
+
+      // Crear notificación
+      await createNotification(
+        req.user.id,
+        NotificationType.PROFILE_COMPLETED,
+        'Has completado tu perfil exitosamente',
+        {
+          timestamp: new Date().toISOString()
+        }
+      );
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error('Error en la base de datos:', error);
+      res.status(500).json({ 
+        message: 'Error al actualizar el perfil en la base de datos',
+        error: 'DATABASE_ERROR'
+      });
+    }
   } catch (error) {
     console.error('Error al completar el perfil:', error);
-    res.status(500).json({ message: 'Error al actualizar el perfil' });
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: 'INTERNAL_SERVER_ERROR'
+    });
   }
 };
 
@@ -1175,14 +1354,15 @@ export const forcePasswordChange = async (req: RequestWithUser, res: Response): 
     // Enviar email de confirmación
     await sendPasswordChangeConfirmation(user.email);
 
-    await logActivity({
-      userId: userId,
-      action: 'FORCE_PASSWORD_CHANGE',
+    await logActivity(userId, 'PASSWORD_CHANGED', {
+      category: ActivityCategory.USER,
       details: {
         description: 'Contraseña actualizada exitosamente en primer inicio de sesión',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'],
-        timestamp: new Date()
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString()
+        }
       }
     });
 
@@ -1193,7 +1373,7 @@ export const forcePasswordChange = async (req: RequestWithUser, res: Response): 
       'Has cambiado tu contraseña exitosamente',
       {
         isFirstLogin: true,
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       }
     );
 
@@ -1227,15 +1407,16 @@ export const createFirstAdmin = async (req: Request<{}, {}, RegisterRequest>, re
       return;
     }
 
-    // Validar email
-    if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+    // Normalizar y validar email
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail || !normalizedEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
       res.status(400).json({ message: 'Email inválido' });
       return;
     }
 
-    // Verificar si el usuario ya existe
+    // Verificar si el usuario ya existe usando el email normalizado
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: normalizedEmail }
     });
 
     if (existingUser) {
@@ -1247,10 +1428,10 @@ export const createFirstAdmin = async (req: Request<{}, {}, RegisterRequest>, re
     const temporalPassword = 'Temporal12345@';
     const hashedPassword = await bcrypt.hash(temporalPassword, 10);
 
-    // Crear primer admin
+    // Crear primer admin con email normalizado
     const newAdmin = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         rol: UserRole.ADMIN,
         isActive: true,
@@ -1260,16 +1441,18 @@ export const createFirstAdmin = async (req: Request<{}, {}, RegisterRequest>, re
       }
     });
 
-    // Enviar email con credenciales
-    await sendWelcomeEmail(email, temporalPassword);
+    // Enviar email con credenciales usando el email normalizado
+    await sendWelcomeEmail(normalizedEmail, temporalPassword);
 
-    await logActivity({
-      userId: newAdmin.id,
-      action: 'CREATE_USER',
+    await logActivity(newAdmin.id, 'USER_CREATED', {
+      category: ActivityCategory.SYSTEM,
       details: {
         description: 'Administrador creado exitosamente',
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent']
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString()
+        }
       }
     });
 
@@ -1277,7 +1460,7 @@ export const createFirstAdmin = async (req: Request<{}, {}, RegisterRequest>, re
       message: 'Administrador creado exitosamente. Se han enviado las credenciales por email.',
       user: {
         id: newAdmin.id,
-        email: newAdmin.email,
+        email: normalizedEmail,
         rol: newAdmin.rol
       }
     });
@@ -1296,17 +1479,38 @@ export const activateUser = async (req: RequestWithUser, res: Response) => {
     }
 
     const { id } = req.params;
+
+    // Obtener información del usuario a activar
+    const targetUser = await prisma.user.findUnique({
+      where: { id: Number(id) },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        isActive: true
+      }
+    });
+
+    if (!targetUser) {
+      res.status(404).json({ message: 'Usuario no encontrado' });
+      return;
+    }
+
     const user = await prisma.user.update({
       where: { id: Number(id) },
       data: { isActive: true }
     });
 
-    await logActivity({
-      userId: req.user.id,
-      action: 'ACTIVATE_USER',
+    await logActivity(req.user.id, 'ACTIVATE_USER', {
+      category: ActivityCategory.USER,
+      targetId: targetUser.id,
       details: {
-        targetUserId: user.id,
-        timestamp: new Date()
+        description: `Usuario ${targetUser.nombre} (${targetUser.email}) activado`,
+        metadata: {
+          targetUserEmail: targetUser.email,
+          targetUserRole: targetUser.rol
+        }
       }
     });
 
@@ -1321,78 +1525,135 @@ export const activateUser = async (req: RequestWithUser, res: Response) => {
 export const deleteUser = async (req: RequestWithUser, res: Response) => {
   try {
     if (!req.user) {
-      res.status(401).json({ message: 'Usuario no autenticado' });
+      res.status(401).json({ 
+        status: 'error',
+        message: 'Usuario no autenticado' 
+      });
       return;
     }
 
     const { id } = req.params;
+    const userId = Number(id);
     
     // Verificar que no se intente eliminar al usuario actual
-    if (req.user.id === Number(id)) {
-      res.status(400).json({ message: 'No puedes eliminarte a ti mismo' });
+    if (req.user.id === userId) {
+      res.status(400).json({ 
+        status: 'error',
+        message: 'No puedes eliminarte a ti mismo' 
+      });
       return;
     }
 
     // Verificar si el usuario existe antes de eliminarlo
-    const userExists = await prisma.user.findUnique({
-      where: { id: Number(id) }
-    });
-
-    if (!userExists) {
-      res.status(404).json({ message: 'Usuario no encontrado' });
-      return;
-    }
-
-    // Eliminar registros relacionados primero
-    await prisma.$transaction([
-      // Eliminar logs de actividad
-      prisma.activityLog.deleteMany({
-        where: { userId: Number(id) }
-      }),
-      // Eliminar notificaciones
-      prisma.notification.deleteMany({
-        where: { userId: Number(id) }
-      }),
-      // Eliminar permisos de usuario
-      prisma.userPermission.deleteMany({
-        where: { userId: Number(id) }
-      }),
-      // Finalmente eliminar el usuario
-      prisma.user.delete({
-        where: { id: Number(id) }
-      })
-    ]);
-
-    await logActivity({
-      userId: req.user.id,
-      action: 'DELETE_USER',
-      details: {
-        deletedUserId: Number(id),
-        timestamp: new Date()
+    const userToDelete = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        isActive: true
       }
     });
 
-    res.json({ message: 'Usuario eliminado exitosamente' });
+    if (!userToDelete) {
+      res.status(404).json({ 
+        status: 'error',
+        message: 'Usuario no encontrado' 
+      });
+      return;
+    }
+
+    // Eliminar registros relacionados y el usuario en una transacción
+    await prisma.$transaction(async (tx) => {
+      // Eliminar logs de actividad
+      await tx.activityLog.deleteMany({
+        where: { 
+          OR: [
+            { userId: userId },
+            { targetId: userId }
+          ]
+        }
+      });
+
+      // Eliminar notificaciones
+      await tx.notification.deleteMany({
+        where: { userId: userId }
+      });
+
+      // Eliminar permisos de usuario
+      await tx.userPermission.deleteMany({
+        where: { userId: userId }
+      });
+
+      // Finalmente eliminar el usuario
+      await tx.user.delete({
+        where: { id: userId }
+      });
+    });
+
+    // Enviar respuesta exitosa antes del log
+    res.json({ 
+      status: 'success',
+      message: 'Usuario eliminado exitosamente',
+      data: {
+        deletedUser: {
+          id: userToDelete.id,
+          nombre: userToDelete.nombre,
+          email: userToDelete.email
+        }
+      }
+    });
+
+    // Registrar la actividad después de enviar la respuesta
+    await logActivity(req.user.id, 'DELETE_USER', {
+      category: ActivityCategory.USER,
+      targetId: userToDelete.id,
+      details: {
+        description: `Usuario ${userToDelete.nombre} (${userToDelete.email}) eliminado del sistema`,
+        metadata: {
+          targetUserEmail: userToDelete.email,
+          targetUserRole: userToDelete.rol
+        }
+      }
+    });
+
   } catch (error) {
     console.error('Error al eliminar usuario:', error);
-    res.status(500).json({ message: 'Error al eliminar usuario' });
+    res.status(500).json({ 
+      status: 'error',
+      message: 'Error al eliminar usuario',
+      error: error instanceof Error ? error.message : 'Error desconocido'
+    });
   }
 };
 
 // Obtener logs de actividad
-export const getActivityLogs = async (req: Request, res: Response) => {
-  const { userId, action, startDate, endDate, page, limit } = req.query;
+export const getActivityLogs = async (req: RequestWithUser, res: Response) => {
+  const { userId, action, startDate, endDate, page = 1, limit = 10 } = req.query;
   
   try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    const where = {
+      userId: req.user.rol === 'ADMIN' 
+        ? (userId ? Number(userId) : undefined) 
+        : req.user.id,
+      action: action?.toString(),
+      createdAt: {
+        gte: startDate ? new Date(startDate.toString()) : undefined,
+        lte: endDate ? new Date(endDate.toString()) : undefined
+      }
+    };
+
+    // Obtener el total de registros para la paginación
+    const totalCount = await prisma.activityLog.count({ where });
+
     const logs = await prisma.activityLog.findMany({
-      where: {
-        userId: userId ? Number(userId) : undefined,
-        action: action?.toString(),
-        createdAt: {
-          gte: startDate ? new Date(startDate.toString()) : undefined,
-          lte: endDate ? new Date(endDate.toString()) : undefined
-        }
-      },
+      where,
       include: {
         user: {
           select: {
@@ -1405,12 +1666,17 @@ export const getActivityLogs = async (req: Request, res: Response) => {
       orderBy: {
         createdAt: 'desc'
       },
-      skip: page ? (Number(page) - 1) * (Number(limit) || 10) : 0,
-      take: limit ? Number(limit) : 10
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit)
     });
 
-    res.json(logs);
+    res.json({
+      logs,
+      total: totalCount,
+      totalPages: Math.ceil(totalCount / Number(limit))
+    });
   } catch (error) {
+    console.error('Error al obtener logs:', error);
     res.status(500).json({ message: 'Error al obtener logs' });
   }
 };
@@ -1439,12 +1705,31 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Continuar con la creación del usuario
+    // Crear usuario
     const user = await prisma.user.create({
       data: {
         ...userData,
-        cedula: String(cedula), // Convertir explícitamente a string
-        updatedAt: new Date()
+        cedula: String(cedula),
+        updatedAt: new Date(),
+        nombre: userData.nombre || undefined,
+        telefono: userData.telefono || undefined,
+        domicilio: userData.domicilio || undefined,
+        universidad: userData.universidad || undefined,
+        numeroMatricula: userData.numeroMatricula || undefined
+      }
+    });
+
+    // Registrar actividad
+    await logActivity(user.id, 'CREATE_USER', {
+      category: ActivityCategory.USER,
+      targetId: user.id,
+      details: {
+        description: 'Usuario creado exitosamente',
+        metadata: {
+          userEmail: user.email,
+          userRole: user.rol,
+          cedula: user.cedula || undefined
+        }
       }
     });
 
@@ -1471,11 +1756,13 @@ export const completeOnboarding = async (req: RequestWithUser, res: Response): P
     });
 
     // Registrar actividad
-    await logActivity({
-      userId: req.user.id,
-      action: 'ONBOARDING_COMPLETED',
+    await logActivity(req.user.id, 'PROFILE_COMPLETED', {
+      category: ActivityCategory.PROFILE,
       details: {
-        timestamp: new Date()
+        description: 'Onboarding completado',
+        metadata: {
+          timestamp: new Date().toISOString()
+        }
       }
     });
 
@@ -1485,7 +1772,7 @@ export const completeOnboarding = async (req: RequestWithUser, res: Response): P
       NotificationType.SUCCESS,
       '¡Bienvenido! Has completado el proceso de onboarding exitosamente',
       {
-        timestamp: new Date()
+        timestamp: new Date().toISOString()
       }
     );
 
@@ -1521,12 +1808,14 @@ export const updateProfilePhoto = async (req: RequestWithUser & { file?: Express
     });
 
     // Registrar la actividad
-    await logActivity({
-      userId: req.user.id,
-      action: 'UPDATE_PROFILE_PHOTO',
+    await logActivity(req.user.id, 'PROFILE_UPDATED', {
+      category: ActivityCategory.PROFILE,
       details: {
-        timestamp: new Date(),
-        photoUrl
+        description: 'Foto de perfil actualizada',
+        metadata: {
+          timestamp: new Date().toISOString(),
+          photoUrl
+        }
       }
     });
 
@@ -1534,5 +1823,256 @@ export const updateProfilePhoto = async (req: RequestWithUser & { file?: Express
   } catch (error) {
     console.error('Error al actualizar foto de perfil:', error);
     res.status(500).json({ message: 'Error al actualizar foto de perfil' });
+  }
+};
+
+export const changeUserRole = async (req: RequestWithUser, res: Response): Promise<void> => {
+  try {
+    const { userId, newRole, reason } = req.body;
+    const adminId = req.user!.id;
+
+    // Validar que el usuario existe
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        isActive: true
+      }
+    });
+
+    if (!targetUser) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado',
+        error: {
+          code: ApiErrorCode.NOT_FOUND,
+          details: 'El usuario especificado no existe'
+        }
+      });
+      return;
+    }
+
+    // Validar que no se está cambiando su propio rol
+    if (userId === adminId) {
+      res.status(403).json({
+        status: 'error',
+        message: 'Operación no permitida',
+        error: {
+          code: ApiErrorCode.FORBIDDEN,
+          details: 'No puedes cambiar tu propio rol'
+        }
+      });
+      return;
+    }
+
+    const currentRole = targetUser.rol;
+
+    // Actualizar el rol del usuario
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { rol: newRole }
+    });
+
+    // Registrar la actividad
+    await logActivity(adminId, 'CHANGE_ROLE', {
+      category: ActivityCategory.USER,
+      targetId: userId,
+      details: {
+        description: `Rol de usuario ${targetUser.nombre || ''} (${targetUser.email}) cambiado de ${currentRole} a ${newRole}`,
+        userInfo: {
+          performer: {
+            id: adminId,
+            nombre: req.user!.nombre || 'Admin',
+            email: req.user!.email,
+            rol: req.user!.rol
+          },
+          target: {
+            id: targetUser.id,
+            nombre: targetUser.nombre || '',
+            email: targetUser.email,
+            rol: newRole
+          }
+        },
+        metadata: {
+          reason: reason || undefined,
+          timestamp: new Date().toISOString(),
+          ipAddress: req.ip || '',
+          userAgent: req.headers['user-agent'] || '',
+          changes: {
+            before: { rol: currentRole },
+            after: { rol: newRole }
+          }
+        },
+        importance: 'high',
+        status: 'success'
+      },
+      isImportant: true
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Rol actualizado correctamente',
+      data: updatedUser
+    });
+  } catch (error) {
+    console.error('Error al cambiar rol de usuario:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error al cambiar rol de usuario',
+      error: {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      }
+    });
+  }
+};
+
+export const bulkDeleteUsers = async (req: RequestWithUser, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    const { userIds } = req.body;
+
+    if (!userIds || userIds.length === 0) {
+      res.status(400).json({ message: 'Se requiere una lista de IDs de usuarios' });
+      return;
+    }
+
+    const result = await prisma.user.deleteMany({
+      where: {
+        id: {
+          in: userIds
+        }
+      }
+    });
+
+    await logActivity(req.user.id, 'BULK_DELETE_USERS', {
+      category: ActivityCategory.USER,
+      details: {
+        description: `Eliminación masiva de usuarios completada`,
+        metadata: {
+          totalDeleted: result.count,
+          deletedUserIds: userIds
+        }
+      }
+    });
+
+    res.json({
+      message: `Se han eliminado ${result.count} usuarios`,
+      totalDeleted: result.count
+    });
+  } catch (error) {
+    console.error('Error al eliminar usuarios:', error);
+    res.status(500).json({ message: 'Error al eliminar usuarios' });
+  }
+};
+
+export const bulkActivateUsers = async (req: RequestWithUser, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    const { userIds } = req.body;
+
+    if (!userIds || userIds.length === 0) {
+      res.status(400).json({ message: 'Se requiere una lista de IDs de usuarios' });
+      return;
+    }
+
+    const result = await prisma.user.updateMany({
+      where: {
+        id: {
+          in: userIds
+        }
+      },
+      data: {
+        isActive: true
+      }
+    });
+
+    await logActivity(req.user.id, 'BULK_ACTIVATE_USERS', {
+      category: ActivityCategory.USER,
+      details: {
+        description: `Activación masiva de usuarios completada`,
+        metadata: {
+          totalActivated: result.count,
+          activatedUserIds: userIds
+        }
+      }
+    });
+
+    res.json({
+      message: `Se han activado ${result.count} usuarios`,
+      totalActivated: result.count
+    });
+  } catch (error) {
+    console.error('Error al activar usuarios:', error);
+    res.status(500).json({ message: 'Error al activar usuarios' });
+  }
+};
+
+export const importUsers = async (req: RequestWithUser, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    const { users } = req.body;
+
+    if (!users || users.length === 0) {
+      res.status(400).json({ message: 'Se requiere una lista de usuarios' });
+      return;
+    }
+
+    const importedUsers = await Promise.all(users.map(async (userData: any) => {
+      const user = await prisma.user.create({
+        data: {
+          ...userData,
+          updatedAt: new Date()
+        }
+      });
+
+      await logActivity(user.id, 'CREATE_USER', {
+        category: ActivityCategory.USER,
+        targetId: user.id,
+        details: {
+          description: 'Usuario importado exitosamente',
+          metadata: {
+            userEmail: userData.email,
+            userRole: userData.rol
+          }
+        }
+      });
+
+      return user;
+    }));
+
+    await logActivity(req.user.id, 'IMPORT_USERS', {
+      category: ActivityCategory.SYSTEM,
+      details: {
+        description: 'Importación de usuarios completada',
+        metadata: {
+          totalImported: importedUsers.length,
+          importedEmails: importedUsers.map(u => u.email)
+        }
+      }
+    });
+
+    res.json({
+      message: `Se han importado ${importedUsers.length} usuarios`,
+      importedUsers
+    });
+  } catch (error) {
+    console.error('Error al importar usuarios:', error);
+    res.status(500).json({ message: 'Error al importar usuarios' });
   }
 }; 

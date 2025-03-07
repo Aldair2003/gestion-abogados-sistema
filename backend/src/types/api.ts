@@ -7,6 +7,7 @@ export interface ApiResponse<T = any> {
     code?: string;
     details?: string;
   };
+  requiresProfileCompletion?: boolean;
 }
 
 // Tipos específicos para respuestas de usuario
@@ -25,5 +26,8 @@ export enum ApiErrorCode {
   FORBIDDEN = 'FORBIDDEN',
   NOT_FOUND = 'NOT_FOUND',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
-  INTERNAL_ERROR = 'INTERNAL_ERROR'
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+  REFRESH_TOKEN_INVALID = 'REFRESH_TOKEN_INVALID',
+  REFRESH_TOKEN_EXPIRED = 'REFRESH_TOKEN_EXPIRED',
+  ACCOUNT_DISABLED = 'ACCOUNT_DISABLED'
 } 

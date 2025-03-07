@@ -1,8 +1,12 @@
 import { Request } from 'express';
-import { UserRole } from '@prisma/client';
+import { UserRole, Prisma } from '@prisma/client';
 
 // Re-exportar UserRole para que esté disponible para otros módulos
 export { UserRole };
+
+// Re-exportar tipos de Prisma necesarios
+export type UserUpdateInput = Prisma.UserUpdateInput;
+export type UserUncheckedUpdateInput = Prisma.UserUncheckedUpdateInput;
 
 // Enums
 export enum EstadoProfesional {
@@ -23,6 +27,9 @@ export interface UserWithId {
   rol: UserRole;
   isFirstLogin: boolean;
   isProfileCompleted: boolean;
+  nombre?: string;
+  tokenVersion: number;
+  lastActivity?: string;
 }
 
 // Extender Request para incluir el usuario
@@ -96,6 +103,31 @@ export interface UserFull extends UserWithId {
   universidad?: string;
   matricula?: string;
   domicilio?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  password: string;
+  nombre: string | null;
+  cedula: string | null;
+  telefono: string | null;
+  rol: UserRole;
+  isActive: boolean;
+  isFirstLogin: boolean;
+  isProfileCompleted: boolean;
+  isTemporaryPassword: boolean;
+  estadoProfesional: EstadoProfesional | null;
+  universidad: string | null;
+  numeroMatricula: string | null;
+  domicilio: string | null;
+  lastLogin: Date | null;
+  resetToken: string | null;
+  resetTokenExpiry: Date | null;
+  photoUrl: string | null;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 } 
