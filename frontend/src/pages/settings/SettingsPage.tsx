@@ -4,6 +4,7 @@ import { AppearanceSettings } from '../../components/settings/AppearanceSettings
 import { LanguageSettings } from '../../components/settings/LanguageSettings';
 import { SecuritySettings } from '../../components/settings/SecuritySettings';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { Cog6ToothIcon, LanguageIcon, LockClosedIcon } from '../../components/icons/SettingsIcons';
 import type { TranslationKey } from '../../context/LanguageContext';
 
@@ -23,11 +24,8 @@ const tabs: Tab[] = [
 
 export const SettingsPage: React.FC = () => {
   const { t } = useLanguage();
+  const { isDarkMode, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<TabId>('appearance');
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark';
-  });
   const [fontSize, setFontSize] = useState('md');
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>(() => {
     const savedTheme = localStorage.getItem('themeMode') as 'light' | 'dark' | 'system' | null;
@@ -37,20 +35,14 @@ export const SettingsPage: React.FC = () => {
   const handleThemeChange = (mode: 'light' | 'dark' | 'system') => {
     setThemeMode(mode);
     if (mode === 'dark') {
-      document.documentElement.classList.add('dark');
-      setIsDarkMode(true);
+      toggleTheme();
     } else if (mode === 'light') {
-      document.documentElement.classList.remove('dark');
-      setIsDarkMode(false);
+      toggleTheme();
     } else {
       // Modo sistema - detectar preferencia del sistema
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (prefersDark) {
-        document.documentElement.classList.add('dark');
-        setIsDarkMode(true);
-      } else {
-        document.documentElement.classList.remove('dark');
-        setIsDarkMode(false);
+      if (prefersDark !== isDarkMode) {
+        toggleTheme();
       }
     }
     localStorage.setItem('themeMode', mode);
@@ -64,13 +56,7 @@ export const SettingsPage: React.FC = () => {
 
   // Efecto para cargar las preferencias guardadas
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
     const savedFontSize = localStorage.getItem('fontSize');
-
-    if (savedTheme === 'dark') {
-      handleThemeChange('dark');
-    }
-
     if (savedFontSize) {
       handleFontSizeChange(savedFontSize);
     }

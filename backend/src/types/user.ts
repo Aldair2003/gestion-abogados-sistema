@@ -1,33 +1,25 @@
 import { Request } from 'express';
-import { UserRole, Prisma } from '@prisma/client';
+import { UserRole, EstadoProfesional } from '.prisma/client';
 
-// Re-exportar UserRole para que esté disponible para otros módulos
-export { UserRole };
+// Re-exportar los enums como valores
+export { UserRole, EstadoProfesional };
 
-// Re-exportar tipos de Prisma necesarios
-export type UserUpdateInput = Prisma.UserUpdateInput;
-export type UserUncheckedUpdateInput = Prisma.UserUncheckedUpdateInput;
-
-// Enums
-export enum EstadoProfesional {
-  ESTUDIANTE = 'ESTUDIANTE',
-  GRADUADO = 'GRADUADO'
+// Tipos base para operaciones de actualización
+export interface BaseUpdateInput {
+  [key: string]: any;
 }
 
-export enum NivelEstudio {
-  ESTUDIANTE = 'ESTUDIANTE',
-  GRADUADO = 'GRADUADO',
-  MAESTRIA = 'MAESTRIA'
-}
+export type UserUpdateInput = BaseUpdateInput;
+export type UserUncheckedUpdateInput = BaseUpdateInput;
 
 // Interfaces base
 export interface UserWithId {
   id: number;
   email: string;
+  nombre?: string | null;
   rol: UserRole;
   isFirstLogin: boolean;
   isProfileCompleted: boolean;
-  nombre?: string;
   tokenVersion: number;
   lastActivity?: string;
 }
@@ -41,24 +33,23 @@ export interface RequestWithUser extends Request {
 export interface CreateUserDTO {
   email: string;
   password: string;
-  nombre: string;
-  cedula: string;
-  telefono: string;
+  nombre?: string;
+  cedula?: string;
+  telefono?: string;
   rol: UserRole;
   matricula?: string;
   domicilio?: string;
-  nivelEstudios?: NivelEstudio;
   universidad?: string;
 }
 
 export interface CompleteProfileData {
+  nombre: string;
   cedula: string;
   telefono: string;
-  estadoProfesional: EstadoProfesional;
-  universidad?: string;
-  numeroMatricula?: string;
   domicilio: string;
-  [key: string]: string | undefined;
+  estadoProfesional: EstadoProfesional;
+  numeroMatricula?: string;
+  universidad?: string;
 }
 
 export interface RegisterRequest {
@@ -66,68 +57,91 @@ export interface RegisterRequest {
   rol: UserRole;
 }
 
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
 export interface UserUpdateData {
   nombre?: string;
-  email?: string;
   cedula?: string;
   telefono?: string;
+  email?: string;
   domicilio?: string;
   estadoProfesional?: EstadoProfesional;
   numeroMatricula?: string;
   universidad?: string;
   photoUrl?: string;
-  isProfileCompleted?: boolean;
-  isFirstLogin?: boolean;
-  [key: string]: string | EstadoProfesional | boolean | undefined;
+  isActive?: boolean;
+  rol?: UserRole;
+  updatedAt?: Date;
 }
 
 // Tipos para respuestas API
 export interface UserResponse {
   id: number;
   email: string;
-  nombre: string;
-  rol: UserRole;
-  isActive: boolean;
-  isProfileCompleted: boolean;
-}
-
-// Tipo completo de Usuario
-export interface UserFull extends UserWithId {
-  nombre: string;
-  cedula: string;
-  telefono: string;
-  isActive: boolean;
-  isFirstLogin: boolean;
-  isProfileCompleted: boolean;
-  nivelEstudios?: NivelEstudio;
-  universidad?: string;
-  matricula?: string;
-  domicilio?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface User {
-  id: number;
-  email: string;
-  password: string;
   nombre: string | null;
   cedula: string | null;
   telefono: string | null;
+  domicilio: string | null;
+  estadoProfesional: EstadoProfesional | null;
+  numeroMatricula: string | null;
+  universidad: string | null;
+  photoUrl: string | null;
   rol: UserRole;
   isActive: boolean;
+  lastLogin: Date | null;
+  createdAt: Date;
+}
+
+export interface UserData extends UserResponse {
   isFirstLogin: boolean;
   isProfileCompleted: boolean;
   isTemporaryPassword: boolean;
-  estadoProfesional: EstadoProfesional | null;
-  universidad: string | null;
-  numeroMatricula: string | null;
-  domicilio: string | null;
-  lastLogin: Date | null;
-  resetToken: string | null;
-  resetTokenExpiry: Date | null;
-  photoUrl: string | null;
   tokenVersion: number;
-  createdAt: Date;
-  updatedAt: Date;
-} 
+}
+
+export interface ExportUserData extends UserData {}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UserUpdateRequest {
+  nombre?: string;
+  cedula?: string;
+  telefono?: string;
+  email?: string;
+  isActive?: boolean;
+  rol?: UserRole;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface UserFilters {
+  search?: string;
+  rol?: UserRole;
+  isActive?: string | boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedUsersResponse {
+  users: UserResponse[];
+  total: number;
+  page: number;
+  totalPages: number;
+  hasMore: boolean;
+  message?: string;
+}

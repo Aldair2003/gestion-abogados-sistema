@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Disclosure } from '@headlessui/react';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { 
+  ChevronDownIcon, 
+  HomeIcon,
+  UserGroupIcon,
+  Cog6ToothIcon,
+  MapPinIcon
+} from './icons/CustomIcons';
 
 interface MenuItem {
   title: string;
   path?: string;
-  icon: string;
+  icon: React.ReactNode;
   subItems?: {
     title: string;
     path: string;
@@ -31,8 +37,13 @@ export const Sidebar = () => {
 
   const menuItems: MenuItem[] = [
     {
+      title: 'Cantones',
+      icon: <MapPinIcon className="h-5 w-5" />,
+      path: '/cantones'
+    },
+    {
       title: 'Usuarios',
-      icon: '👥',
+      icon: <UserGroupIcon className="h-5 w-5" />,
       subItems: [
         { title: 'Lista de Usuarios', path: '/usuarios' },
         { title: 'Roles y Permisos', path: '/usuarios/roles' }
@@ -40,16 +51,16 @@ export const Sidebar = () => {
     },
     {
       title: 'Expedientes',
-      icon: '📁',
+      icon: <HomeIcon className="h-5 w-5" />,
       subItems: [
-        { title: 'Casos Activos', path: '/expedientes/activos' },
+        { title: 'Casos ', path: '/expedientes/activos' },
         { title: 'Casos Cerrados', path: '/expedientes/cerrados' },
         { title: 'Crear Caso', path: '/expedientes/crear' }
       ]
     },
     {
       title: 'Calendario',
-      icon: '📅',
+      icon: <Cog6ToothIcon className="h-5 w-5" />,
       path: '/calendario'
     }
   ];

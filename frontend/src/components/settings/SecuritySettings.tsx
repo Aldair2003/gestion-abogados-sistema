@@ -1,12 +1,9 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { KeyIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { showToast } from '../../utils/toast';
 import { useLanguage } from '../../context/LanguageContext';
-import { LockClosedIcon } from '../icons/SettingsIcons';
+
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, 'Campo requerido'),

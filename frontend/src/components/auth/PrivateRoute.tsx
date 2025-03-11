@@ -8,7 +8,7 @@ export const PrivateRoute = () => {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    if (user && (user.isTemporaryPassword || !user.isProfileCompleted)) {
+    if (user && (user.isTemporaryPassword || (user.isProfileCompleted === false && !localStorage.getItem('profileCompletedOnce')))) {
       setShowOnboarding(true);
     } else {
       setShowOnboarding(false);
@@ -28,7 +28,10 @@ export const PrivateRoute = () => {
       <Outlet />
       <OnboardingModal 
         isOpen={showOnboarding} 
-        onComplete={completeOnboarding} 
+        onComplete={() => {
+          completeOnboarding();
+          localStorage.setItem('profileCompletedOnce', 'true');
+        }} 
       />
     </>
   ) : <Navigate to="/login" replace />;

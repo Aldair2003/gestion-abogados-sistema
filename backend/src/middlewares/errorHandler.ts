@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { ApiResponse, ApiErrorCode } from '../types/api';
-import { Prisma, ActivityCategory } from '@prisma/client';
+import { Prisma } from '.prisma/client';
+import { ApiErrorCode, ApiResponse } from '../types/apiError';
+import { CustomError } from '../utils/customError';
 import { logActivity } from '../services/logService';
+import { ActivityCategory } from '../types/prisma';
 
 // Tipos de error personalizados
 export class ValidationError extends Error {
@@ -18,82 +20,124 @@ export class NotFoundError extends Error {
   }
 }
 
-// Middleware de manejo de errores centralizado
 export const errorHandler = async (
-  error: Error,
+  error: Error | CustomError | Prisma.PrismaClientKnownRequestError,
   req: Request,
   res: Response,
   _next: NextFunction
-): Promise<void> => {
-  console.error('Error:', error);
+) => {
+  console.error('Error:', {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    path: req.path,
+    method: req.method,
+    userId: (req as any).user?.id
+  });
 
-  let statusCode = 500;
-  const response: ApiResponse = {
+  let response: ApiResponse = {
     status: 'error',
-    message: 'Error interno del servidor'
+    error: {
+      code: ApiErrorCode.INTERNAL_ERROR,
+      message: 'Ha ocurrido un error interno',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }
   };
 
-  // Manejar errores específicos
-  if (error instanceof ValidationError) {
-    statusCode = 400;
-    response.message = error.message;
+  let statusCode = 500;
+
+  // Manejar errores personalizados
+  if (error instanceof CustomError) {
     response.error = {
-      code: ApiErrorCode.VALIDATION_ERROR,
-      details: error.message
+      code: error.code,
+      message: error.message,
+      details: error.details
     };
-  } else if (error instanceof NotFoundError) {
-    statusCode = 404;
-    response.message = error.message;
-    response.error = {
-      code: ApiErrorCode.NOT_FOUND,
-      details: error.message
-    };
-  } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    // Manejar errores específicos de Prisma
+    statusCode = error.status;
+  }
+  // Manejar errores de Prisma
+  else if (error instanceof Prisma.PrismaClientKnownRequestError) {
     switch (error.code) {
       case 'P2002': // Unique constraint violation
-        statusCode = 409;
-        response.message = 'El registro ya existe';
         response.error = {
-          code: 'DUPLICATE_ENTRY',
-          details: `El campo ${error.meta?.target} debe ser único`
+          code: ApiErrorCode.DUPLICATE_ENTRY,
+          message: 'Ya existe un registro con estos datos',
+          details: {
+            fields: (error.meta as any)?.target
+          }
         };
+        statusCode = 400;
         break;
       case 'P2025': // Record not found
-        statusCode = 404;
-        response.message = 'Registro no encontrado';
         response.error = {
           code: ApiErrorCode.NOT_FOUND,
-          details: error.message
+          message: 'Registro no encontrado',
+          details: error.meta
         };
+        statusCode = 404;
         break;
       default:
         response.error = {
-          code: `PRISMA_${error.code}`,
+          code: ApiErrorCode.DATABASE_ERROR,
+          message: 'Error en la base de datos',
           details: process.env.NODE_ENV === 'development' ? error.message : undefined
         };
+        statusCode = 500;
     }
   }
+  // Manejar errores de validación
+  else if (error.name === 'ValidationError') {
+    response.error = {
+      code: ApiErrorCode.VALIDATION_ERROR,
+      message: 'Error de validación',
+      details: error.message
+    };
+    statusCode = 400;
+  }
+  // Manejar errores de JWT
+  else if (error.name === 'JsonWebTokenError') {
+    response.error = {
+      code: ApiErrorCode.INVALID_TOKEN,
+      message: 'Token inválido',
+    };
+    statusCode = 401;
+  }
+  else if (error.name === 'TokenExpiredError') {
+    response.error = {
+      code: ApiErrorCode.SESSION_EXPIRED,
+      message: 'La sesión ha expirado',
+    };
+    statusCode = 401;
+  }
 
-  // Registrar el error
-  await logActivity(
-    (req as any).user?.id || 0,
-    'ERROR',
-    {
-      category: ActivityCategory.SYSTEM,
-      details: {
-        description: 'Error en la aplicación',
-        metadata: {
-          path: req.path,
-          method: req.method,
-          errorName: error.name,
-          errorMessage: error.message,
-          statusCode,
-          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  // Registrar error en el sistema de actividades si es grave
+  if (statusCode >= 500) {
+    try {
+      await logActivity((req as any).user?.id || -1, 'SYSTEM_ERROR', {
+        category: ActivityCategory.SYSTEM,
+        details: {
+          description: 'Error del sistema',
+          metadata: {
+            timestamp: new Date().toISOString(),
+            requestInfo: {
+              path: req.path,
+              method: req.method,
+              userAgent: req.headers['user-agent'],
+              ip: req.ip
+            }
+          },
+          error: {
+            code: response.error?.code,
+            message: response.error?.message,
+            path: req.path,
+            method: req.method
+          }
         }
-      }
+      });
+    } catch (logError) {
+      console.error('Error al registrar actividad de error:', logError);
     }
-  );
+  }
 
   res.status(statusCode).json(response);
 }; 

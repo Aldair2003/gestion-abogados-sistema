@@ -1,156 +1,126 @@
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
+interface ApiErrorResponse {
+  status: string;
+  message: string;
+  errors?: Record<string, string>;
+  code?: string;
+}
+
+// Crear instancia de axios con la configuración base
 const api = axios.create({
   baseURL: 'http://localhost:3000/api',
+  timeout: 15000,
   headers: {
-    'Content-Type': 'application/json'
-  },
-  withCredentials: true
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
 });
 
-let isRefreshing = false;
-let failedQueue: Array<{
-  resolve: (token: string) => void;
-  reject: (error: any) => void;
-}> = [];
+// Variable para controlar si ya se mostró el mensaje de sesión expirada
+let isShowingSessionExpiredMessage = false;
 
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach(promise => {
-    if (error) {
-      promise.reject(error);
-    } else {
-      promise.resolve(token!);
-    }
-  });
-  failedQueue = [];
-};
-
-// Interceptor para agregar el token a las peticiones
+// Interceptor para agregar el token de autenticación
 api.interceptors.request.use(
   (config) => {
-    console.log('Request:', {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log('Enviando petición:', {
       url: config.url,
       method: config.method,
       headers: config.headers,
       data: config.data
     });
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
     return config;
   },
   (error) => {
-    console.error('Request Error:', error);
+    console.error('Error en la petición:', error);
     return Promise.reject(error);
   }
 );
 
-// Interceptor para manejar errores y refresh token
+// Interceptor para manejar respuestas
 api.interceptors.response.use(
   (response) => {
-    console.log('Response:', {
+    console.log('Respuesta exitosa:', {
+      url: response.config.url,
       status: response.status,
+      statusText: response.statusText,
       data: response.data
     });
     return response;
   },
-  async (error) => {
-    console.error('Response Error:', {
+  (error) => {
+    console.error('Error en la respuesta:', {
+      url: error.config?.url,
       status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
+      message: error.response?.data?.message || error.message,
+      data: error.response?.data
     });
 
-    const originalRequest = error.config;
-
-    // Si el error no es de autenticación o ya intentamos refrescar, rechazar
-    if (error.response?.status !== 401 || originalRequest._retry) {
-      return Promise.reject(error);
-    }
-
-    // Si es error de token expirado y tenemos refresh token
-    if (error.response?.data?.error?.code === 'SESSION_EXPIRED' && localStorage.getItem('refreshToken')) {
-      if (isRefreshing) {
-        // Si ya estamos refrescando, agregar a la cola
-        try {
-          const token = await new Promise<string>((resolve, reject) => {
-            failedQueue.push({ resolve, reject });
-          });
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return api(originalRequest);
-        } catch (err) {
-          return Promise.reject(err);
-        }
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        const response = await api.post('/auth/refresh', { refreshToken });
-        
-        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-        
-        localStorage.setItem('token', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
-        
-        api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-        processQueue(null, accessToken);
-        
-        return api(originalRequest);
-      } catch (refreshError) {
-        processQueue(refreshError, null);
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        
-        toast.error('Tu sesión ha expirado por inactividad', {
-          duration: 5000,
-          position: 'top-center',
-          style: {
-            background: '#fee2e2',
-            color: '#991b1b',
-            border: '1px solid #f87171'
-          }
-        });
-        
-        // Redirigir solo si no estamos ya en la página de login
-        if (!window.location.pathname.includes('/login')) {
+    // Manejar errores específicos
+    if (error.response) {
+      switch (error.response.status) {
+        case 401:
+          toast.error('Sesión expirada. Por favor, inicie sesión nuevamente.');
+          localStorage.removeItem('token');
           window.location.href = '/login';
-        }
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
+          break;
+        case 403:
+          toast.error('No tiene permisos para realizar esta acción');
+          break;
+        case 404:
+          toast.error('Recurso no encontrado');
+          break;
+        case 422:
+          const errors = error.response.data.errors;
+          if (errors) {
+            Object.values(errors).forEach((message: any) => {
+              toast.error(message);
+            });
+          } else {
+            toast.error('Error de validación');
+          }
+          break;
+        case 500:
+          toast.error('Error interno del servidor');
+          break;
+        default:
+          toast.error('Error en la operación');
       }
+    } else if (error.request) {
+      toast.error('No se pudo conectar con el servidor');
+    } else {
+      toast.error('Error al procesar la solicitud');
     }
 
-    // Si no hay refresh token o el error no es de token expirado
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      
-      toast.error('Error de autenticación. Por favor, inicie sesión nuevamente.', {
-        duration: 5000,
-        position: 'top-center',
-        style: {
-          background: '#fee2e2',
-          color: '#991b1b',
-          border: '1px solid #f87171'
-        }
-      });
-      
-      // Redirigir solo si no estamos ya en la página de login
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
-    }
-    
     return Promise.reject(error);
   }
 );
+
+// Función para manejar la expiración de sesión
+const handleSessionExpired = () => {
+  if (!isShowingSessionExpiredMessage) {
+    isShowingSessionExpiredMessage = true;
+    
+    // Limpiar datos de sesión
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    
+    toast.error('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
+    
+    // Redirigir al login
+    window.location.href = '/login';
+    
+    // Resetear el flag después de la redirección
+    setTimeout(() => {
+      isShowingSessionExpiredMessage = false;
+    }, 1000);
+  }
+};
 
 export default api; 

@@ -1,0 +1,54 @@
+### Variables globales
+@baseUrl = http://localhost:3000/api
+@authToken = your_jwt_token_here
+
+### 1. Asignar permisos de cantón
+POST {{baseUrl}}/permissions/canton/assign
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "userId": 2,
+  "cantonId": 1,
+  "canView": true,
+  "canCreate": true,
+  "canEdit": false
+}
+
+### 2. Asignar permisos de persona
+POST {{baseUrl}}/permissions/persona/assign
+Content-Type: application/json
+Authorization: Bearer {{authToken}}
+
+{
+  "userId": 2,
+  "personaId": 1,
+  "cantonId": 1,
+  "canView": true,
+  "canCreate": false,
+  "canEditOwn": true
+}
+
+### 3. Obtener permisos de cantón de un usuario
+GET {{baseUrl}}/permissions/canton/2
+Authorization: Bearer {{authToken}}
+
+### 4. Obtener permisos de persona de un usuario
+GET {{baseUrl}}/permissions/persona/2
+Authorization: Bearer {{authToken}}
+
+### 5. Obtener permisos por cantón
+GET {{baseUrl}}/permissions/canton/1/permissions
+Authorization: Bearer {{authToken}}
+
+### 6. Revocar permisos de cantón
+DELETE {{baseUrl}}/permissions/canton/revoke/2/1
+Authorization: Bearer {{authToken}}
+
+### 7. Revocar permisos de persona
+DELETE {{baseUrl}}/permissions/persona/revoke/2/1
+Authorization: Bearer {{authToken}}
+
+### 8. Obtener historial de cambios
+GET {{baseUrl}}/permissions/logs
+Authorization: Bearer {{authToken}} 

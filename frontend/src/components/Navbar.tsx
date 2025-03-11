@@ -6,7 +6,7 @@ export const Navbar = () => {
   const { user, logout } = useAuth();
 
   return (
-    <nav className="bg-white dark:bg-[#1a2234] shadow-sm border-b border-gray-200/20 dark:border-dark-700/20">
+    <nav className="bg-white dark:bg-[#1a2234] shadow-sm border-b border-gray-200/20 dark:border-dark-700/20 fixed top-0 left-0 right-0 z-40">
       <div className="flex items-center justify-between px-4 py-2">
         <Link 
           to="/dashboard" 

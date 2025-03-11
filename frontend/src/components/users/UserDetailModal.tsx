@@ -105,7 +105,7 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
                   ) : (
                     <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-600">
                       <span className="text-lg font-medium text-white">
-                        {user.nombre?.charAt(0).toUpperCase() || '?'}
+                        {(user.nombre?.trim() || user.email?.trim() || '?').charAt(0).toUpperCase()}
                       </span>
                     </div>
                   )}

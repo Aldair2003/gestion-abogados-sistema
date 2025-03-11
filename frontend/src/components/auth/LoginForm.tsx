@@ -25,10 +25,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
         password: data.password
       });
       
-      if (response.data.user.isTemporaryPassword) {
-        localStorage.setItem(`temporaryPassword_${data.email}`, data.password);
-      }
-      
       localStorage.setItem('refreshToken', response.data.refreshToken);
       await login(response.data.token, response.data.user);
     } catch (error: any) {
@@ -68,7 +64,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
             className="block w-full pl-12 pr-4 py-3 text-base 
               border border-gray-200 dark:border-gray-700 
               rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
-              bg-white/70 dark:bg-gray-900/70"
+              bg-white/70 dark:bg-gray-900/70
+              text-gray-900 dark:text-white
+              placeholder-gray-500 dark:placeholder-gray-400"
             placeholder="ejemplo@email.com"
           />
         </div>
@@ -98,7 +96,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
             className="block w-full pl-12 pr-12 py-3 text-base 
               border border-gray-200 dark:border-gray-700 
               rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
-              bg-white/70 dark:bg-gray-900/70"
+              bg-white/70 dark:bg-gray-900/70
+              text-gray-900 dark:text-white
+              placeholder-gray-500 dark:placeholder-gray-400"
             placeholder="••••••••"
           />
           <button

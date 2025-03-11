@@ -4,8 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 
+// Intervalo de keep-alive (15 minutos)
+const KEEP_ALIVE_INTERVAL = 15 * 60 * 1000;
+
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   updateUser: (userData: User | null) => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -17,6 +21,7 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
+  token: null,
   updateUser: () => {},
   isAuthenticated: false,
   isLoading: false,
@@ -35,8 +40,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const storedUser = localStorage.getItem('user');
     return storedUser ? JSON.parse(storedUser) : null;
   });
+  const [token, setToken] = useState<string | null>(() => {
+    return localStorage.getItem('token');
+  });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Keep-alive handler
+  const handleKeepAlive = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      const response = await api.post('/auth/keep-alive');
+      if (response.status !== 200) {
+        throw new Error('Error en la respuesta del keep-alive');
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error('Error en keep-alive:', error.message);
+      }
+    }
+  }, [token]);
+
+  // Configurar el intervalo de keep-alive
+  useEffect(() => {
+    let keepAliveTimer: NodeJS.Timeout;
+    let isKeepAliveInProgress = false;
+
+    const executeKeepAlive = async () => {
+      if (isKeepAliveInProgress) return;
+      
+      isKeepAliveInProgress = true;
+      await handleKeepAlive();
+      isKeepAliveInProgress = false;
+    };
+
+    if (token) {
+      // Iniciar el keep-alive
+      keepAliveTimer = setInterval(executeKeepAlive, KEEP_ALIVE_INTERVAL);
+      
+      // Ejecutar keep-alive inicial después de un pequeño retraso
+      setTimeout(executeKeepAlive, 1000);
+    }
+
+    return () => {
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+      }
+    };
+  }, [token, handleKeepAlive]);
 
   const updateUser = useCallback((userData: User | null) => {
     setUser(userData);
@@ -65,10 +117,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [user, updateUser, navigate]);
 
-  const login = useCallback(async (token: string, userData: User) => {
+  const login = useCallback(async (newToken: string, userData: User) => {
     try {
       setIsLoading(true);
-      localStorage.setItem('token', token);
+      localStorage.setItem('token', newToken);
+      setToken(newToken);
       updateUser(userData);
       
       // Obtener datos actualizados del usuario
@@ -77,12 +130,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.status === 200) {
         const updatedUserData = response.data;
         updateUser(updatedUserData);
-      }
-      
-      // Redirigir según el estado del usuario
-      if (!userData.isProfileCompleted) {
-        navigate('/complete-profile');
-      } else {
         navigate('/dashboard');
       }
     } catch (error) {
@@ -105,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      setToken(null);
       updateUser(null);
       
       toast.success('Has cerrado sesión exitosamente', {
@@ -122,33 +170,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [updateUser, navigate]);
 
-  const verifyToken = useCallback(async (token: string) => {
+  const verifyToken = useCallback(async (currentToken: string) => {
     try {
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      api.defaults.headers.common['Authorization'] = `Bearer ${currentToken}`;
       const response = await api.get('/users/me');
       
       if (response.status === 200) {
         const userData = response.data;
         updateUser(userData);
+        setToken(currentToken);
       }
     } catch (error) {
       console.error('Error verificando token:', error);
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      setToken(null);
       updateUser(null);
     }
   }, [updateUser]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      verifyToken(token);
+    const storedToken = localStorage.getItem('token');
+    if (storedToken) {
+      verifyToken(storedToken);
     }
   }, [verifyToken]);
 
   const value = useMemo(() => ({
     user,
+    token,
     login,
     logout,
     isAuthenticated: !!user,
@@ -156,7 +207,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAdmin: user?.rol === UserRole.ADMIN,
     updateUser,
     completeOnboarding
-  }), [user, login, logout, isLoading, updateUser, completeOnboarding]);
+  }), [user, token, login, logout, isLoading, updateUser, completeOnboarding]);
 
   return (
     <AuthContext.Provider value={value}>

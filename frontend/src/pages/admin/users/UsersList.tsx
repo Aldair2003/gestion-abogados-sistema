@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 
 import { UsersTable } from '../../../components/admin/UsersTable';
 import { UsersFilters } from '../components/UsersFilters';
@@ -9,9 +9,10 @@ import { Pagination } from '../components/Pagination';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { UserDetailModal } from '../../../components/users/UserDetailModal';
 import { useUserDetails } from '../../../hooks/useUserDetails';
-import { User, UserUpdateData, UserRole, UserCreateData, UserWithActivity } from '../../../types/user';
-import { PlusIcon, UsersIcon, TableCellsIcon, DocumentTextIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { User, UserUpdateData, UserRole, UserCreateData } from '../../../types/user';
+import { UsersIcon, TableCellsIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
+import { ExcelIcon, PDFIcon, CreateUserIcon } from '../../../components/icons/CustomIcons';
 
 interface FiltersState {
   search: string;
@@ -42,10 +43,14 @@ interface SelectedUser {
   isActive: boolean;
 }
 
+// Memorizar componentes pesados
+const MemoizedUsersTable = memo(UsersTable);
+const MemoizedUsersFilters = memo(UsersFilters);
+const MemoizedPagination = memo(Pagination);
+
 export const UsersList = () => {
   console.log('Renderizando UsersList');
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SelectedUser | null>(null);
@@ -62,6 +67,7 @@ export const UsersList = () => {
     sortField: 'createdAt',
     sortDirection: 'desc'
   });
+  const [debouncedFilters, setDebouncedFilters] = useState(filters);
   const [pagination, setPagination] = useState({
     currentPage: 1,
     totalPages: 1,
@@ -73,35 +79,45 @@ export const UsersList = () => {
   const { loading: loadingDetails, userDetails, fetchUserDetails } = useUserDetails();
   const [userToToggle, setUserToToggle] = useState<{ id: number; currentStatus: boolean } | null>(null);
 
+  // Estados de carga optimizados
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  // Optimizar el manejo de filtros con debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(filters);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [filters]);
+
   const fetchUsers = useCallback(async () => {
     try {
-      console.log('Iniciando fetchUsers');
-      setLoading(true);
+      if (!isLoadingInitial) {
+        setIsLoadingData(true);
+      }
       setError(null);
       
-      // Preparar los parámetros de la petición
       const params = {
-        search: filters.search || undefined,
-        rol: filters.rol || undefined,
-        isActive: filters.isActive === '' ? undefined : filters.isActive,
-        createdAtStart: filters.createdAtStart?.toISOString(),
-        createdAtEnd: filters.createdAtEnd?.toISOString(),
-        lastLoginStart: filters.lastLoginStart?.toISOString(),
-        lastLoginEnd: filters.lastLoginEnd?.toISOString(),
+        search: debouncedFilters.search || undefined,
+        rol: debouncedFilters.rol || undefined,
+        isActive: debouncedFilters.isActive === '' ? undefined : debouncedFilters.isActive,
+        createdAtStart: debouncedFilters.createdAtStart?.toISOString(),
+        createdAtEnd: debouncedFilters.createdAtEnd?.toISOString(),
+        lastLoginStart: debouncedFilters.lastLoginStart?.toISOString(),
+        lastLoginEnd: debouncedFilters.lastLoginEnd?.toISOString(),
         page: pagination.currentPage,
         limit: pagination.itemsPerPage,
-        sortField: filters.sortField,
-        sortDirection: filters.sortDirection
+        sortField: debouncedFilters.sortField,
+        sortDirection: debouncedFilters.sortDirection
       };
 
-      // Eliminar parámetros undefined
       const cleanParams = Object.fromEntries(
         Object.entries(params).filter(([_, value]) => value !== undefined)
       );
       
-      console.log('Parámetros de la petición:', cleanParams);
       const response = await api.get('/users', { params: cleanParams });
-      console.log('Respuesta de usuarios:', response.data);
       
       setUsers(response.data.users || []);
       setPagination(prev => ({
@@ -114,17 +130,35 @@ export const UsersList = () => {
       setError(error.response?.data?.message || 'Error al cargar los usuarios');
       toast.error('Error al cargar los usuarios');
     } finally {
-      setLoading(false);
+      setIsLoadingData(false);
+      setIsLoadingInitial(false);
     }
-  }, [filters, pagination.currentPage, pagination.itemsPerPage]);
+  }, [debouncedFilters, pagination.currentPage, pagination.itemsPerPage, isLoadingInitial]);
 
+  // Efecto inicial para cargar usuarios
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchUsers();
-    }, 300);
+    fetchUsers();
+  }, [fetchUsers]);
 
-    return () => clearTimeout(timer);
-  }, [filters, fetchUsers]);
+  // Efecto para manejar cambios en los filtros
+  useEffect(() => {
+    if (!isLoadingInitial) {
+      const timer = setTimeout(() => {
+        fetchUsers();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [debouncedFilters, fetchUsers, isLoadingInitial]);
+
+  const handleFilterChange = useCallback((newFilters: Partial<FiltersState>) => {
+    setFilters(prev => {
+      const updatedFilters = { ...prev, ...newFilters };
+      if ('search' in newFilters) {
+        return updatedFilters;
+      }
+      return { ...updatedFilters, page: 1 };
+    });
+  }, []);
 
   const handleCreateUser = async (userData: UserCreateData) => {
     try {
@@ -247,22 +281,8 @@ export const UsersList = () => {
   };
 
   const handlePageChange = (newPage: number) => {
+    if (newPage === pagination.currentPage) return;
     setPagination(prev => ({ ...prev, currentPage: newPage }));
-  };
-
-  const handleFilterChange = (newFilters: Partial<FiltersState>) => {
-    setFilters(prev => {
-      // Si hay un nuevo valor para rol, asegurarse de que sea un UserRole válido o string vacío
-      if ('rol' in newFilters) {
-        const rolValue = newFilters.rol;
-        if (rolValue && Object.values(UserRole).includes(rolValue as UserRole)) {
-          newFilters.rol = rolValue as UserRole;
-        } else {
-          newFilters.rol = '';
-        }
-      }
-      return { ...prev, ...newFilters };
-    });
   };
 
   const handleSort = (sortConfig: SortConfig) => {
@@ -278,39 +298,21 @@ export const UsersList = () => {
     setDetailModalOpen(true);
   };
 
-  const handleExportExcel = async () => {
+  const handleExport = async (type: 'excel' | 'pdf') => {
     try {
-      const response = await api.get('/users/export/excel', {
+      const response = await api.get(`/users/export/${type}`, {
         responseType: 'blob'
       });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'usuarios.xlsx');
+      link.setAttribute('download', `usuarios.${type === 'excel' ? 'xlsx' : 'pdf'}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
     } catch (error) {
-      toast.error('Error al exportar a Excel');
-    }
-  };
-
-  const handleExportPDF = async () => {
-    try {
-      const response = await api.get('/users/export/pdf', {
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'usuarios.pdf');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
-      toast.error('Error al exportar a PDF');
+      toast.error('Error al exportar el archivo');
     }
   };
 
@@ -336,7 +338,7 @@ export const UsersList = () => {
     try {
       const { id, currentStatus } = userToToggle;
       const action = currentStatus ? 'deactivate' : 'activate';
-      await api.patch(`/admin/users/${id}/${action}`);
+      await api.patch(`/users/${id}/${action}`);
       toast.success(`Usuario ${currentStatus ? 'desactivado' : 'activado'} exitosamente`);
       fetchUsers();
     } catch (error: any) {
@@ -350,10 +352,13 @@ export const UsersList = () => {
     setDetailModalOpen(false);
   };
 
-  if (loading) {
+  if (isLoadingInitial || (!users.length && isLoadingData)) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+      <div className="min-h-[400px] flex flex-col items-center justify-center p-6 bg-gray-50 dark:bg-[#0f172a]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-400">
+          {isLoadingInitial ? 'Cargando panel de administración...' : 'Cargando usuarios...'}
+        </p>
       </div>
     );
   }
@@ -381,235 +386,249 @@ export const UsersList = () => {
   }
 
   return (
-    <div className="space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto p-6 bg-gray-50 dark:bg-[#0f172a]">
-      {/* Header con estadísticas y botones */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white dark:bg-[#1e293b]/90 rounded-2xl shadow-lg
-                  border border-gray-200 dark:border-gray-700/30
-                  backdrop-blur-md p-8
-                  hover:shadow-xl transition-all duration-300"
-      >
-        {/* Header y Acciones */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-lg shadow-primary-500/20">
-                <TableCellsIcon className="h-8 w-8 text-white" />
-              </div>
-              Gestión de Usuarios
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Administra los usuarios del sistema, sus roles y permisos
-            </p>
+    <div className="min-h-screen bg-gray-50 dark:bg-[#0f172a]">
+      <div className="max-w-[2000px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Header con estadísticas y botones */}
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="bg-white dark:bg-[#1e293b]/90 rounded-2xl shadow-lg
+                    border border-gray-200 dark:border-gray-700/30
+                    backdrop-blur-md p-6 lg:p-8"
+        >
+          {/* Header y Acciones */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-1">
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-lg shadow-primary-500/20">
+                  <TableCellsIcon className="h-6 w-6 lg:h-8 lg:w-8 text-white" />
+                </div>
+                Gestión de Usuarios
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Administra los usuarios del sistema, sus roles y permisos
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleExport('excel')}
+                className="inline-flex items-center px-4 py-2.5
+                         bg-emerald-50 dark:bg-emerald-500/10
+                         text-emerald-700 dark:text-emerald-400
+                         hover:bg-emerald-100 dark:hover:bg-emerald-500/20
+                         rounded-xl text-sm font-medium
+                         border border-emerald-200/50 dark:border-emerald-500/20
+                         shadow-sm hover:shadow-md
+                         transition-all duration-200"
+              >
+                <ExcelIcon className="h-5 w-5 mr-2" />
+                Excel
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => handleExport('pdf')}
+                className="inline-flex items-center px-4 py-2.5
+                         bg-red-50 dark:bg-red-500/10
+                         text-red-700 dark:text-red-400
+                         hover:bg-red-100 dark:hover:bg-red-500/20
+                         rounded-xl text-sm font-medium
+                         border border-red-200/50 dark:border-red-500/20
+                         shadow-sm hover:shadow-md
+                         transition-all duration-200"
+              >
+                <PDFIcon className="h-5 w-5 mr-2" />
+                PDF
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={openCreateModal}
+                className="inline-flex items-center px-4 py-2.5
+                         bg-primary-500 dark:bg-primary-500
+                         text-white font-medium rounded-xl
+                         shadow-lg shadow-primary-500/20
+                         hover:shadow-xl hover:shadow-primary-500/30
+                         hover:bg-primary-600 dark:hover:bg-primary-600
+                         transition-all duration-200"
+              >
+                <CreateUserIcon className="h-5 w-5 mr-2" />
+                Nuevo Usuario
+              </motion.button>
+            </div>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleExportExcel}
-              className="inline-flex items-center px-4 py-2.5 
-                       bg-gradient-to-r from-emerald-500 to-emerald-600
-                       hover:from-emerald-600 hover:to-emerald-700
-                       text-white font-medium rounded-xl
-                       shadow-lg shadow-emerald-500/20
-                       hover:shadow-xl hover:shadow-emerald-500/30
-                       transition-all duration-300"
-            >
-              <DocumentTextIcon className="h-5 w-5 mr-2" />
-              Excel
-            </motion.button>
 
-            <motion.button
+          {/* Estadísticas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mt-6 lg:mt-8">
+            <motion.div 
               whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleExportPDF}
-              className="inline-flex items-center px-4 py-2.5 
-                       bg-gradient-to-r from-red-500 to-red-600
-                       hover:from-red-600 hover:to-red-700
-                       text-white font-medium rounded-xl
-                       shadow-lg shadow-red-500/20
-                       hover:shadow-xl hover:shadow-red-500/30
-                       transition-all duration-300"
-            >
-              <DocumentTextIcon className="h-5 w-5 mr-2" />
-              PDF
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={openCreateModal}
-              className="inline-flex items-center px-4 py-2.5
-                       bg-gradient-to-r from-primary-500 to-primary-600
-                       hover:from-primary-600 hover:to-primary-700
-                       text-white font-medium rounded-xl
-                       shadow-lg shadow-primary-500/20
-                       hover:shadow-xl hover:shadow-primary-500/30
-                       transition-all duration-300"
-            >
-              <PlusIcon className="h-5 w-5 mr-2" />
-              Nuevo Usuario
-            </motion.button>
-          </div>
-        </div>
-
-        {/* Estadísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
-          <motion.div 
-            whileHover={{ scale: 1.02 }}
-            className="bg-white dark:bg-[#1e293b] 
-                       rounded-xl p-6 
+              className="bg-white dark:bg-[#1e293b] 
+                       rounded-xl p-4 lg:p-6 
                        border border-primary-200 dark:border-primary-500/20
                        hover:border-primary-300 dark:hover:border-primary-500/30
                        hover:shadow-lg hover:shadow-primary-500/10
                        transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl
                             shadow-lg shadow-primary-500/20">
-                <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                    Total Usuarios
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                    {pagination.totalItems}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
-                  Total Usuarios
-                </p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                  {pagination.totalItems}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div 
-            whileHover={{ scale: 1.02 }}
-            className="bg-white dark:bg-[#1e293b]
-                       rounded-xl p-6 
-                       border border-emerald-200 dark:border-emerald-500/20
-                       hover:border-emerald-300 dark:hover:border-emerald-500/30
-                       hover:shadow-lg hover:shadow-emerald-500/10
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              className="bg-white dark:bg-[#1e293b]
+                       rounded-xl p-4 lg:p-6 
+                       border border-green-200 dark:border-green-500/20
+                       hover:border-green-300 dark:hover:border-green-500/30
+                       hover:shadow-lg hover:shadow-green-500/10
                        transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl
-                            shadow-lg shadow-emerald-500/20">
-                <CheckCircleIcon className="h-6 w-6 text-white" />
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl
+                            shadow-lg shadow-green-500/20">
+                  <UsersIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                    Usuarios Activos
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                    {users.filter(u => u.isActive).length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
-                  Usuarios Activos
-                </p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                  {users.filter(u => u.isActive).length}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div 
-            whileHover={{ scale: 1.02 }}
-            className="bg-white dark:bg-[#1e293b]
-                       rounded-xl p-6 
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              className="bg-white dark:bg-[#1e293b]
+                       rounded-xl p-4 lg:p-6 
                        border border-purple-200 dark:border-purple-500/20
                        hover:border-purple-300 dark:hover:border-purple-500/30
                        hover:shadow-lg hover:shadow-purple-500/10
                        transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl
                             shadow-lg shadow-purple-500/20">
-                <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                    Administradores
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                    {users.filter(u => u.rol === 'ADMIN').length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
-                  Administradores
-                </p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                  {users.filter(u => u.rol === 'ADMIN').length}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div 
-            whileHover={{ scale: 1.02 }}
-            className="bg-white dark:bg-[#1e293b]
-                       rounded-xl p-6 
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              className="bg-white dark:bg-[#1e293b]
+                       rounded-xl p-4 lg:p-6 
                        border border-blue-200 dark:border-blue-500/20
                        hover:border-blue-300 dark:hover:border-blue-500/30
                        hover:shadow-lg hover:shadow-blue-500/10
                        transition-all duration-300">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl
                             shadow-lg shadow-blue-500/20">
-                <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                    Colaboradores
+                  </p>
+                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                    {users.filter(u => u.rol === 'COLABORADOR').length}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
-                  Colaboradores
-                </p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                  {users.filter(u => u.rol === 'COLABORADOR').length}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* Filtros */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="mt-6"
+        >
+          <MemoizedUsersFilters 
+            filters={filters} 
+            onFilterChange={handleFilterChange} 
+          />
+        </motion.div>
+
+        {/* Tabla de usuarios */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className="mt-6 bg-white dark:bg-[#1e293b] rounded-2xl shadow-lg overflow-hidden
+                    border border-gray-200 dark:border-gray-700/30"
+        >
+          <MemoizedUsersTable 
+            users={users}
+            loading={isLoadingData}
+            onEdit={openEditModal}
+            onDelete={handleDelete}
+            onView={handleViewUser}
+            onSort={handleSort}
+            onToggleActive={handleToggleActive}
+            currentSort={{ field: filters.sortField, direction: filters.sortDirection }}
+          />
+        </motion.div>
+
+        {/* Paginación */}
+        <div className="mt-6">
+          <MemoizedPagination
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
-      </motion.div>
 
-      {/* Filtros */}
-      <UsersFilters 
-        filters={filters} 
-        onFilterChange={handleFilterChange} 
-      />
-
-      {/* Tabla de usuarios */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white/80 dark:bg-dark-800/80 rounded-2xl shadow-lg overflow-hidden
-                  border border-gray-200/20 dark:border-dark-700/20 
-                  backdrop-blur-sm"
-      >
-        <UsersTable 
-          users={users}
-          loading={loading}
-          onEdit={openEditModal}
-          onDelete={handleDelete}
-          onView={handleViewUser}
-          onSort={handleSort}
-          onToggleActive={handleToggleActive}
-          currentSort={{ field: filters.sortField, direction: filters.sortDirection }}
+        {/* Modales */}
+        <ConfirmationModal
+          isOpen={!!userToDeactivate}
+          onClose={() => setUserToDeactivate(null)}
+          onConfirm={handleDeactivateConfirm}
+          title="Desactivar Usuario"
+          message="¿Está seguro de que desea desactivar este usuario? Esta acción no se puede deshacer."
+          confirmText="Sí, desactivar"
+          cancelText="Cancelar"
+          type="danger"
         />
-      </motion.div>
 
-      {/* Paginación */}
-      <Pagination
-        currentPage={pagination.currentPage}
-        totalPages={pagination.totalPages}
-        onPageChange={handlePageChange}
-      />
-
-      <ConfirmationModal
-        isOpen={!!userToDeactivate}
-        onClose={() => setUserToDeactivate(null)}
-        onConfirm={handleDeactivateConfirm}
-        title="Desactivar Usuario"
-        message="¿Estás seguro de que deseas desactivar este usuario? Esta acción no se puede deshacer."
-        confirmText="Sí, desactivar"
-        cancelText="Cancelar"
-        type="danger"
-      />
-
-      <ConfirmationModal
-        isOpen={!!userToToggle}
-        onClose={() => setUserToToggle(null)}
-        onConfirm={handleToggleConfirm}
-        title={`${userToToggle?.currentStatus ? 'Desactivar' : 'Activar'} Usuario`}
-        message={`¿Estás seguro de que deseas ${userToToggle?.currentStatus ? 'desactivar' : 'activar'} este usuario?`}
-        confirmText={`Sí, ${userToToggle?.currentStatus ? 'desactivar' : 'activar'}`}
-        cancelText="Cancelar"
-        type={userToToggle?.currentStatus ? 'danger' : 'info'}
-      />
+        <ConfirmationModal
+          isOpen={!!userToToggle}
+          onClose={() => setUserToToggle(null)}
+          onConfirm={handleToggleConfirm}
+          title={`${userToToggle?.currentStatus ? 'Desactivar' : 'Activar'} Usuario`}
+          message={`¿Está seguro de que desea ${userToToggle?.currentStatus ? 'desactivar' : 'activar'} este usuario?`}
+          confirmText={`Sí, ${userToToggle?.currentStatus ? 'desactivar' : 'activar'}`}
+          cancelText="Cancelar"
+          type={userToToggle?.currentStatus ? 'danger' : 'info'}
+        />
+      </div>
 
       <UserFormModal
         isOpen={modalOpen}

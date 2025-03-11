@@ -1,11 +1,12 @@
 import React from 'react';
-import { Activity } from '../../types/user';
+import { Activity, ActivityFilters } from '../../types/activity';
 import { formatDate } from '../../utils/dateUtils';
 
 export interface ActivityListProps {
   activities: Activity[];
   compact?: boolean;
   loading?: boolean;
+  filters?: ActivityFilters;
 }
 
 export const ActivityList: React.FC<ActivityListProps> = ({ activities, compact = false, loading = false }) => {

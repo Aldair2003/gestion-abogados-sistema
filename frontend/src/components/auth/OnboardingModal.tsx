@@ -15,27 +15,26 @@ interface OnboardingModalProps {
 interface OnboardingState {
   passwordChanged: boolean;
   profileCompleted: boolean;
-  temporaryPassword?: string;
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComplete }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [onboardingState, setOnboardingState] = useState<OnboardingState>(() => {
-    const savedState = localStorage.getItem(`onboardingState_${user?.email}`);
-    return savedState ? JSON.parse(savedState) : {
-      passwordChanged: false,
-      profileCompleted: false,
-      temporaryPassword: localStorage.getItem(`temporaryPassword_${user?.email}`) || ''
-    };
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>({
+    passwordChanged: !user?.isTemporaryPassword,
+    profileCompleted: user?.isProfileCompleted || false
   });
 
   useEffect(() => {
-    if (user?.email) {
-      localStorage.setItem(`onboardingState_${user.email}`, JSON.stringify(onboardingState));
+    if (user) {
+      setOnboardingState(prev => ({
+        ...prev,
+        passwordChanged: !user.isTemporaryPassword,
+        profileCompleted: user.isProfileCompleted || false
+      }));
     }
-  }, [onboardingState, user?.email]);
+  }, [user]);
 
   useEffect(() => {
     if (isOpen) {
@@ -48,7 +47,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
               ¡Bienvenido al Sistema!
             </span>
             <span className="text-sm text-gray-600 dark:text-gray-300">
-              Sesión iniciada correctamente. Por favor, complete su configuración inicial.
+              Por favor, complete su configuración inicial.
             </span>
           </div>
         </div>
@@ -99,13 +98,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
       ...prev,
       passwordChanged: true
     }));
-    if (user?.email) {
-      localStorage.removeItem(`temporaryPassword_${user.email}`);
-    }
-    toast.success('Contraseña actualizada correctamente', {
-      duration: 3000,
-      position: 'top-center',
-    });
+    toast.success('Contraseña actualizada exitosamente. Ahora puede completar su información personal.');
   };
 
   const handleProfileCompleted = () => {
@@ -118,11 +111,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
       profileCompleted: true
     }));
     onComplete();
-    // Limpiamos el estado de onboarding al completar
-    if (user?.email) {
-      localStorage.removeItem(`onboardingState_${user.email}`);
-    }
-    toast.success('¡Configuración completada exitosamente!');
   };
 
   return (
@@ -132,6 +120,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
         onClose={handleClose}
         title="Configuración Inicial"
         size="2xl"
+        preventClose={!onboardingState.passwordChanged}
       >
         <div className="space-y-3">
           <div className="text-center mb-1">
@@ -145,10 +134,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
 
           <div className="grid grid-cols-2 gap-3">
             {/* Formulario de Cambio de Contraseña */}
-            <div className="bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className={`bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border ${onboardingState.passwordChanged ? 'border-green-200 dark:border-green-800' : 'border-gray-200 dark:border-gray-700'}`}>
               <div className="mb-1.5">
                 <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
-                  <span className="flex-shrink-0 w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xs font-semibold">
+                  <span className={`flex-shrink-0 w-4 h-4 rounded-full ${onboardingState.passwordChanged ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'} flex items-center justify-center text-xs font-semibold`}>
                     1
                   </span>
                   Cambiar Contraseña Temporal
@@ -157,6 +146,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
                   Por seguridad, actualice su contraseña temporal
                 </p>
               </div>
+              
               {onboardingState.passwordChanged ? (
                 <div className="flex flex-col items-center justify-center p-4 space-y-2">
                   <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
@@ -175,17 +165,16 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
                     onPasswordChanged={handlePasswordChanged} 
                     isCompleted={onboardingState.passwordChanged}
                     compact={true}
-                    initialPassword={onboardingState.temporaryPassword || 'Temporal12345@'}
                   />
                 </div>
               )}
             </div>
 
             {/* Formulario de Perfil */}
-            <div className="bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className={`bg-white dark:bg-gray-800 p-2.5 rounded-lg shadow-sm border ${!onboardingState.passwordChanged ? 'opacity-50' : onboardingState.profileCompleted ? 'border-green-200 dark:border-green-800' : 'border-gray-200 dark:border-gray-700'}`}>
               <div className="mb-1.5">
                 <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 flex items-center gap-1.5">
-                  <span className="flex-shrink-0 w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 flex items-center justify-center text-xs font-semibold">
+                  <span className={`flex-shrink-0 w-4 h-4 rounded-full ${onboardingState.profileCompleted ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400' : 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'} flex items-center justify-center text-xs font-semibold`}>
                     2
                   </span>
                   Completar Información
@@ -222,47 +211,36 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
       <Modal
         isOpen={showConfirmModal}
         onClose={handleCancelExit}
-        title="Confirmar Salida"
+        title="¿Estás seguro?"
         size="sm"
       >
         <div className="p-6">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex-shrink-0 w-12 h-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-              <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 dark:text-yellow-500" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex-shrink-0">
+              <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500" />
             </div>
             <div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                ¿Está seguro que desea salir?
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                Contraseña temporal no cambiada
               </h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Deberá cambiar su contraseña temporal la próxima vez que inicie sesión.
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Si sales ahora, deberás cambiar tu contraseña temporal en el próximo inicio de sesión.
               </p>
             </div>
           </div>
           
-          <div className="mt-6 flex justify-end gap-3">
+          <div className="flex justify-end gap-3">
             <button
-              type="button"
               onClick={handleCancelExit}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 
-                bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 
-                rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 
-                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 
-                dark:focus:ring-offset-gray-800 transition-colors duration-200"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
-              type="button"
               onClick={handleConfirmExit}
-              className="px-4 py-2 text-sm font-medium text-white 
-                bg-red-600 dark:bg-red-500 border border-transparent 
-                rounded-md hover:bg-red-700 dark:hover:bg-red-600 
-                focus:outline-none focus:ring-2 focus:ring-offset-2 
-                focus:ring-red-500 dark:focus:ring-offset-gray-800 
-                transition-colors duration-200"
+              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
             >
-              Sí, salir
+              Salir
             </button>
           </div>
         </div>

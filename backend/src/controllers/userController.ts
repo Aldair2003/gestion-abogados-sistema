@@ -5,11 +5,10 @@ import dotenv from 'dotenv';
 import crypto from 'crypto';
 import { sendWelcomeEmail, sendPasswordResetEmail, sendPasswordChangeConfirmation } from '../services/emailService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
-import { validateCedula, validatePhone } from '../utils/validators';
+import { validateCedula, validateTelefono } from '../utils/validators';
 import { prisma } from '../lib/prisma';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { Prisma, UserRole, ActivityCategory } from '@prisma/client';
 import { logActivity } from '../services/logService';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../types/notification';
@@ -17,9 +16,20 @@ import {
   RequestWithUser,
   RegisterRequest,
   EstadoProfesional,
-  UserWithId
+  UserWithId,
+  UserRole,
+  UserUpdateData,
+  ExportUserData,
+  UserData,
+  UserUpdateRequest,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+  UserFilters,
+  PaginatedUsersResponse,
+  UserResponse
 } from '../types/user';
-import { ApiErrorCode } from '../types/api';
+import { ApiErrorCode } from '../types/apiError';
+import { JsonValue } from '../types/activity';
 
 dotenv.config();
 
@@ -28,6 +38,47 @@ interface ChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
 }
+
+interface TransactionClient {
+  activityLog: {
+    deleteMany: (args: any) => Promise<any>;
+  };
+  notification: {
+    deleteMany: (args: any) => Promise<any>;
+  };
+  userPermission: {
+    deleteMany: (args: any) => Promise<any>;
+  };
+  user: {
+    delete: (args: any) => Promise<any>;
+  };
+}
+
+export enum ActivityCategory {
+  AUTH = 'AUTH',
+  USER = 'USER',
+  PROFILE = 'PROFILE',
+  SYSTEM = 'SYSTEM',
+  PERMISSION = 'PERMISSION',
+  ADMINISTRATIVE = 'ADMINISTRATIVE',
+  ACCOUNT_STATUS = 'ACCOUNT_STATUS',
+  SESSION = 'SESSION',
+  CANTON = 'CANTON',
+  JUEZ = 'JUEZ',
+  PERSONA = 'PERSONA',
+  DOCUMENTO = 'DOCUMENTO'
+}
+
+const serializeUserData = (user: any): Record<string, JsonValue> => {
+  return Object.fromEntries(
+    Object.entries(user).map(([key, value]) => [
+      key,
+      value instanceof Date ? value.toISOString() : 
+      value === null ? null : 
+      typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value
+    ])
+  ) as Record<string, JsonValue>;
+};
 
 export const register = async (req: Request<{}, {}, RegisterRequest>, res: Response): Promise<void> => {
   try {
@@ -240,6 +291,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     await logActivity(user.id, 'LOGIN', {
       category: ActivityCategory.AUTH,
       details: {
+        description: `Inicio de sesión exitoso para el usuario ${user.email}`,
         metadata: {
           userEmail: user.email,
           timestamp: new Date().toISOString()
@@ -251,7 +303,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       id: updatedUser.id,
       email: updatedUser.email,
       nombre: updatedUser.nombre || '',
-      rol: updatedUser.rol,
+      rol: updatedUser.rol as UserRole,
       isFirstLogin: updatedUser.isFirstLogin,
       isProfileCompleted: updatedUser.isProfileCompleted,
       tokenVersion: updatedUser.tokenVersion
@@ -323,6 +375,7 @@ export const changePassword = async (
     await logActivity(userId, 'CHANGE_PASSWORD', {
       category: ActivityCategory.USER,
       details: {
+        description: 'Contraseña cambiada exitosamente',
         metadata: {
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
@@ -353,7 +406,10 @@ export const changePassword = async (
   }
 };
 
-export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+export const forgotPassword = async (
+  req: Request<{}, {}, ForgotPasswordRequest>, 
+  res: Response
+): Promise<void> => {
   try {
     const { email } = req.body;
     const user = await prisma.user.findUnique({ where: { email } });
@@ -380,6 +436,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     await logActivity(user.id, 'FORGOT_PASSWORD', {
       category: ActivityCategory.USER,
       details: {
+        description: `Solicitud de restablecimiento de contraseña para ${user.email}`,
         metadata: {
           userEmail: user.email
         }
@@ -394,7 +451,10 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
   }
 };
 
-export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+export const resetPassword = async (
+  req: Request<{}, {}, ResetPasswordRequest>, 
+  res: Response
+): Promise<void> => {
   try {
     const { token, newPassword } = req.body;
 
@@ -437,6 +497,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     await logActivity(user.id, 'RESET_PASSWORD', {
       category: ActivityCategory.USER,
       details: {
+        description: `Token de restablecimiento de contraseña eliminado`,
         metadata: {
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
@@ -444,7 +505,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
           changes: {
             before: {
               hasResetToken: true,
-              resetTokenExpiry: user.resetTokenExpiry
+              resetTokenExpiry: user.resetTokenExpiry ? user.resetTokenExpiry.toISOString() : null
             },
             after: {
               hasResetToken: false,
@@ -463,10 +524,13 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 };
 
 // Editar usuario
-export const updateUser = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const updateUser = async (
+  req: RequestWithUser, 
+  res: Response
+): Promise<void> => {
   try {
-    const { id } = req.params;
-    const { nombre, cedula, telefono, email, isActive, rol } = req.body;
+    const { id } = req.params as { id: string };
+    const { nombre, cedula, telefono, email, isActive, rol } = req.body as UserUpdateRequest;
 
     // Verificar si el usuario que hace la petición es admin
     if (req.user?.rol !== UserRole.ADMIN) {
@@ -483,25 +547,27 @@ export const updateUser = async (req: RequestWithUser, res: Response): Promise<v
       return;
     }
 
-    // Crear un objeto con los datos a actualizar, manejando valores nulos
-    const updateData: Prisma.UserUpdateInput = {
+    const updateData: UserUpdateRequest = {
       ...(nombre !== undefined && { nombre: String(nombre || '') }),
       ...(cedula !== undefined && { cedula: String(cedula || '') }),
       ...(telefono !== undefined && { telefono: String(telefono || '') }),
       ...(email !== undefined && { email: String(email || '') }),
-      ...(rol !== undefined && { rol: rol as UserRole }),
-      ...(isActive !== undefined && { isActive: Boolean(isActive) }),
-      updatedAt: new Date()
+      ...(rol !== undefined && { rol }),
+      ...(isActive !== undefined && { isActive: Boolean(isActive) })
     };
 
     const updatedUser = await prisma.user.update({
       where: { id: Number(id) },
-      data: updateData
+      data: {
+        ...updateData,
+        updatedAt: new Date()
+      }
     });
 
     await logActivity(updatedUser.id, 'UPDATE_USER', {
       category: ActivityCategory.USER,
       details: {
+        description: `Actualización de campos de usuario: ${Object.keys(updateData).join(', ')}`,
         metadata: {
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
@@ -515,8 +581,10 @@ export const updateUser = async (req: RequestWithUser, res: Response): Promise<v
       message: 'Usuario actualizado exitosamente',
       user: {
         id: updatedUser.id,
-        nombre: updatedUser.nombre,
         email: updatedUser.email,
+        nombre: updatedUser.nombre,
+        cedula: updatedUser.cedula,
+        telefono: updatedUser.telefono,
         rol: updatedUser.rol,
         isActive: updatedUser.isActive
       }
@@ -573,6 +641,7 @@ export const deactivateUser = async (req: RequestWithUser, res: Response): Promi
       category: ActivityCategory.USER,
       targetId: userId,
       details: {
+        description: `Usuario eliminado: ${user.email}`,
         metadata: {
           targetUserEmail: user.email
         }
@@ -593,77 +662,111 @@ export const deactivateUser = async (req: RequestWithUser, res: Response): Promi
   }
 };
 
-export const getUsers = async (req: Request, res: Response) => {
+export const getUsers = async (
+  req: Request<{}, {}, {}, UserFilters>, 
+  res: Response<PaginatedUsersResponse>
+) => {
   try {
-    const { 
-      search = '', 
-      rol = '', 
-      isActive, 
-      page = 1, 
-      limit = 10,
-      sortField = 'createdAt',
-      sortDirection = 'desc'
-    } = req.query;
+    const { search, rol, isActive, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
-    // Construir where con sintaxis de Prisma
     const where: any = {};
 
-    // Filtro de búsqueda
     if (search) {
       where.OR = [
-        { nombre: { contains: String(search), mode: 'insensitive' } },
-        { email: { contains: String(search), mode: 'insensitive' } }
+        { email: { contains: search, mode: 'insensitive' } },
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { cedula: { contains: search, mode: 'insensitive' } }
       ];
     }
 
-    // Filtro por rol
-    if (rol && Object.values(UserRole).includes(rol as UserRole)) {
-      where.rol = rol as UserRole;
+    if (rol) {
+      where.rol = rol;
     }
 
-    // Filtro por estado
-    if (isActive !== undefined && isActive !== '') {
-      where.isActive = isActive === 'true';
+    if (isActive !== undefined) {
+      where.isActive = typeof isActive === 'string' ? isActive.toLowerCase() === 'true' : isActive;
     }
 
-    // Validar campos permitidos para ordenamiento
-    const allowedSortFields = ['nombre', 'email', 'rol', 'isActive', 'lastLogin', 'createdAt'];
-    const actualSortField = allowedSortFields.includes(String(sortField)) ? String(sortField) : 'createdAt';
-    const actualSortDirection = ['asc', 'desc'].includes(String(sortDirection)) ? String(sortDirection) : 'desc';
+    const skip = (Number(page) - 1) * Number(limit);
 
-    // Usar Prisma para la consulta
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
-        skip: (+page - 1) * +limit,
-        take: +limit,
-        orderBy: {
-          [actualSortField]: actualSortDirection
-        },
+        skip,
+        take: Number(limit),
+        orderBy: { [sortBy]: sortOrder },
         select: {
           id: true,
-          nombre: true,
           email: true,
+          nombre: true,
           cedula: true,
           telefono: true,
           rol: true,
           isActive: true,
+          domicilio: true,
+          estadoProfesional: true,
+          numeroMatricula: true,
+          universidad: true,
+          photoUrl: true,
           lastLogin: true,
-          photoUrl: true
+          createdAt: true
         }
       }),
       prisma.user.count({ where })
     ]);
 
-    res.json({
-      users,
+    const totalPages = Math.ceil(total / Number(limit));
+    const hasMore = Number(page) < totalPages;
+
+    const formattedUsers: UserResponse[] = users.map((user: {
+      id: number;
+      email: string;
+      nombre: string | null;
+      cedula: string | null;
+      telefono: string | null;
+      domicilio: string | null;
+      estadoProfesional: EstadoProfesional | null;
+      numeroMatricula: string | null;
+      universidad: string | null;
+      photoUrl: string | null;
+      rol: UserRole;
+      isActive: boolean;
+      lastLogin: Date | null;
+      createdAt: Date;
+    }) => ({
+      id: user.id,
+      email: user.email,
+      nombre: user.nombre,
+      cedula: user.cedula,
+      telefono: user.telefono,
+      domicilio: user.domicilio,
+      estadoProfesional: user.estadoProfesional,
+      numeroMatricula: user.numeroMatricula,
+      universidad: user.universidad,
+      photoUrl: user.photoUrl,
+      rol: user.rol,
+      isActive: user.isActive,
+      lastLogin: user.lastLogin,
+      createdAt: user.createdAt
+    }));
+
+    res.status(200).json({
+      users: formattedUsers,
       total,
-      page: +page,
-      totalPages: Math.ceil(total / +limit)
+      page: Number(page),
+      totalPages,
+      hasMore
     });
   } catch (error) {
-    console.error('Error getting users:', error);
-    res.status(500).json({ message: 'Error al obtener usuarios' });
+    console.error('Error al obtener usuarios:', error);
+    res.status(500).json({
+      users: [],
+      total: 0,
+      page: 1,
+      totalPages: 0,
+      hasMore: false,
+      message: 'Error al obtener usuarios'
+    });
   }
 };
 
@@ -768,16 +871,40 @@ export const exportToExcel = async (_: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
-        nombre: true,
+        id: true,
         email: true,
+        nombre: true,
         cedula: true,
         telefono: true,
         rol: true,
         isActive: true,
         lastLogin: true,
-        createdAt: true
+        createdAt: true,
+        isFirstLogin: true,
+        isProfileCompleted: true,
+        isTemporaryPassword: true,
+        tokenVersion: true,
+        domicilio: true,
+        estadoProfesional: true,
+        numeroMatricula: true,
+        universidad: true,
+        photoUrl: true
       }
     });
+
+    const formattedUsers: ExportUserData[] = users.map((user) => ({
+      ...user,
+      nombre: user.nombre,
+      cedula: user.cedula,
+      telefono: user.telefono,
+      lastLogin: user.lastLogin,
+      domicilio: user.domicilio,
+      estadoProfesional: user.estadoProfesional,
+      numeroMatricula: user.numeroMatricula,
+      universidad: user.universidad,
+      photoUrl: user.photoUrl,
+      rol: user.rol
+    }));
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Usuarios');
@@ -793,7 +920,7 @@ export const exportToExcel = async (_: Request, res: Response) => {
       { header: 'Fecha Registro', key: 'createdAt', width: 20 }
     ];
 
-    users.forEach(user => {
+    formattedUsers.forEach((user: ExportUserData) => {
       worksheet.addRow({
         ...user,
         isActive: user.isActive ? 'Activo' : 'Inactivo',
@@ -808,7 +935,7 @@ export const exportToExcel = async (_: Request, res: Response) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error('Error exportando a Excel:', error);
+    console.error('Error al exportar usuarios:', error);
     res.status(500).json({ message: 'Error al exportar usuarios' });
   }
 };
@@ -817,15 +944,40 @@ export const exportToPDF = async (_: Request, res: Response) => {
   try {
     const users = await prisma.user.findMany({
       select: {
-        nombre: true,
+        id: true,
         email: true,
+        nombre: true,
         cedula: true,
         telefono: true,
         rol: true,
         isActive: true,
-        lastLogin: true
+        lastLogin: true,
+        createdAt: true,
+        isFirstLogin: true,
+        isProfileCompleted: true,
+        isTemporaryPassword: true,
+        tokenVersion: true,
+        domicilio: true,
+        estadoProfesional: true,
+        numeroMatricula: true,
+        universidad: true,
+        photoUrl: true
       }
     });
+
+    const formattedUsers: UserData[] = users.map((user) => ({
+      ...user,
+      nombre: user.nombre,
+      cedula: user.cedula,
+      telefono: user.telefono,
+      lastLogin: user.lastLogin,
+      domicilio: user.domicilio,
+      estadoProfesional: user.estadoProfesional,
+      numeroMatricula: user.numeroMatricula,
+      universidad: user.universidad,
+      photoUrl: user.photoUrl,
+      rol: user.rol
+    }));
 
     const doc = new PDFDocument();
     res.setHeader('Content-Type', 'application/pdf');
@@ -853,8 +1005,8 @@ export const exportToPDF = async (_: Request, res: Response) => {
 
     // Datos
     doc.font('Helvetica');
-    users.forEach(user => {
-      if (currentTop > 700) { // Nueva página si no hay espacio
+    formattedUsers.forEach((user: UserData) => {
+      if (currentTop > 700) {
         doc.addPage();
         currentTop = 50;
       }
@@ -868,7 +1020,7 @@ export const exportToPDF = async (_: Request, res: Response) => {
 
     doc.end();
   } catch (error) {
-    console.error('Error exportando a PDF:', error);
+    console.error('Error al exportar usuarios:', error);
     res.status(500).json({ message: 'Error al exportar usuarios' });
   }
 };
@@ -926,7 +1078,7 @@ export const updateUserProfile = async (
     }
 
     // Construir objeto de actualización
-    const updateData: Prisma.UserUpdateInput = {};
+    const updateData: UserUpdateData = {};
 
     // Solo actualizar los campos que vienen en el request
     if (req.body.nombre !== undefined) updateData.nombre = req.body.nombre || '';
@@ -938,12 +1090,19 @@ export const updateUserProfile = async (
         });
         return;
       }
-      const userWithCedula = await prisma.user.findUnique({
-        where: { cedula: req.body.cedula }
+      // Verificar si la cédula ya existe para otro usuario
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          cedula: req.body.cedula,
+          NOT: {
+            id: req.user?.id
+          }
+        }
       });
-      if (userWithCedula && userWithCedula.id !== userId) {
+
+      if (existingUser) {
         res.status(400).json({
-          message: 'La cédula ya está registrada',
+          message: 'La cédula ya está registrada para otro usuario',
           error: 'DUPLICATE_CEDULA'
         });
         return;
@@ -951,7 +1110,7 @@ export const updateUserProfile = async (
       updateData.cedula = req.body.cedula || '';
     }
     if (req.body.telefono !== undefined) {
-      if (!validatePhone(req.body.telefono)) {
+      if (!validateTelefono(req.body.telefono)) {
         res.status(400).json({
           message: 'El formato del teléfono no es válido (debe ser 09XXXXXXXX)',
           error: 'INVALID_PHONE'
@@ -1003,8 +1162,8 @@ export const updateUserProfile = async (
           updatedFields: Object.keys(updateData)
         },
         changes: {
-          before: existingUser,
-          after: updatedUser
+          before: serializeUserData(existingUser),
+          after: serializeUserData(updatedUser)
         }
       }
     });
@@ -1012,10 +1171,10 @@ export const updateUserProfile = async (
     res.json(updatedUser);
   } catch (error) {
     console.error('Error en updateUserProfile:', error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error instanceof Error && 'code' in error) {
       res.status(400).json({
         message: 'Error al actualizar el perfil',
-        error: error.code
+        error: (error as { code: string }).code
       });
     } else {
       res.status(500).json({
@@ -1127,6 +1286,7 @@ export const completeProfile = async (req: RequestWithUser & { body: {
       await logActivity(req.user.id, 'PROFILE_COMPLETED', {
         category: ActivityCategory.PROFILE,
         details: {
+          description: 'Perfil de usuario completado exitosamente',
           metadata: {
             timestamp: new Date().toISOString()
           }
@@ -1565,7 +1725,7 @@ export const deleteUser = async (req: RequestWithUser, res: Response) => {
     }
 
     // Eliminar registros relacionados y el usuario en una transacción
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: TransactionClient) => {
       // Eliminar logs de actividad
       await tx.activityLog.deleteMany({
         where: { 
@@ -1610,10 +1770,9 @@ export const deleteUser = async (req: RequestWithUser, res: Response) => {
       category: ActivityCategory.USER,
       targetId: userToDelete.id,
       details: {
-        description: `Usuario ${userToDelete.nombre} (${userToDelete.email}) eliminado del sistema`,
+        description: `Usuario eliminado: ${userToDelete.email}`,
         metadata: {
-          targetUserEmail: userToDelete.email,
-          targetUserRole: userToDelete.rol
+          targetUserEmail: userToDelete.email
         }
       }
     });
@@ -1759,7 +1918,7 @@ export const completeOnboarding = async (req: RequestWithUser, res: Response): P
     await logActivity(req.user.id, 'PROFILE_COMPLETED', {
       category: ActivityCategory.PROFILE,
       details: {
-        description: 'Onboarding completado',
+        description: 'Perfil de usuario completado exitosamente',
         metadata: {
           timestamp: new Date().toISOString()
         }
@@ -2074,5 +2233,47 @@ export const importUsers = async (req: RequestWithUser, res: Response): Promise<
   } catch (error) {
     console.error('Error al importar usuarios:', error);
     res.status(500).json({ message: 'Error al importar usuarios' });
+  }
+};
+
+export const getCollaborators = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const collaborators = await prisma.user.findMany({
+      where: {
+        rol: 'COLABORADOR',
+        isActive: true,
+        nombre: {
+          not: null
+        }
+      },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        cedula: true,
+        telefono: true,
+        isProfileCompleted: true
+      }
+    });
+    
+    // Filtrar solo los usuarios que tienen perfil completo
+    const activeCollaborators = collaborators.filter(user => 
+      user.isProfileCompleted && 
+      user.nombre && 
+      user.cedula && 
+      user.telefono
+    );
+
+    res.json({
+      status: 'success',
+      data: activeCollaborators
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: 'Error al obtener colaboradores',
+      error: (error as Error).message
+    });
   }
 }; 
