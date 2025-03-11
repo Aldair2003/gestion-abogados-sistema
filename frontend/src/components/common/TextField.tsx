@@ -14,11 +14,13 @@ const EyeSlashIcon = () => (
 );
 
 interface TextFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
+  label: string;
   error?: string;
   compact?: boolean;
   showPasswordToggle?: boolean;
   initialShowPassword?: boolean;
+  icon?: React.ReactNode;
+  helperText?: string;
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
@@ -30,6 +32,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     type = 'text',
     showPasswordToggle = false,
     initialShowPassword = false,
+    icon,
+    helperText,
     ...props 
   }, ref) => {
     const [showPassword, setShowPassword] = useState(initialShowPassword);
@@ -40,27 +44,28 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
     }, [initialShowPassword]);
 
     return (
-      <div className="w-full">
-        {label && (
-          <label className={`block ${compact ? 'text-sm' : 'text-base'} font-medium text-gray-700 dark:text-gray-300 tracking-wide mb-1`}>
-            {label}
-          </label>
-        )}
+      <div className="space-y-1">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+          {label}
+          {props.required && <span className="text-red-500 ml-1">*</span>}
+        </label>
         <div className="relative">
+          {icon && (
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
+              {icon}
+            </div>
+          )}
           <input
             ref={ref}
             type={isPassword && showPassword ? 'text' : type}
             className={`
-              block w-full px-3
-              ${compact ? 'py-1.5 text-sm' : 'py-2 text-base'}
-              border border-gray-300 dark:border-gray-700 
-              rounded-md focus:ring-1 focus:ring-primary-500 focus:border-transparent 
-              transition-all bg-white dark:bg-gray-800 
-              text-gray-800 dark:text-gray-100 font-normal
-              placeholder-gray-500 dark:placeholder-gray-400
-              disabled:opacity-50 disabled:cursor-not-allowed
-              ${isPassword ? 'pr-10' : ''}
-              ${error ? 'border-red-500 focus:ring-red-500' : ''}
+              block w-full rounded-lg border border-gray-300 shadow-sm 
+              focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 
+              sm:text-sm transition-all duration-200
+              dark:bg-gray-800 dark:border-gray-600 dark:text-white 
+              dark:focus:border-primary-500 dark:focus:ring-primary-500/20
+              ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20' : ''}
+              ${icon ? 'pl-10' : 'pl-4'} pr-4 py-2.5
               ${className}
             `}
             {...props}
@@ -71,7 +76,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
               onClick={() => setShowPassword(!showPassword)}
               className={`absolute inset-y-0 right-0 flex items-center pr-3 
                 ${showPassword 
-                  ? 'text-blue-500 hover:text-blue-600' 
+                  ? 'text-primary-500 hover:text-primary-600' 
                   : 'text-gray-400 hover:text-gray-600'
                 } transition-colors duration-200`}
             >
@@ -83,12 +88,15 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             </button>
           )}
         </div>
+        {helperText && !error && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">{helperText}</p>
+        )}
         {error && (
-          <p className={`mt-1 ${compact ? 'text-sm' : 'text-base'} text-red-500 font-medium`}>
-            {error}
-          </p>
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}
       </div>
     );
   }
-); 
+);
+
+TextField.displayName = 'TextField'; 

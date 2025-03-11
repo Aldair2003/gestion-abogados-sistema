@@ -7,6 +7,7 @@ import { Modal } from '../common/Modal';
 import { TextField } from '../common/TextField';
 import { SelectField } from '../common/SelectField';
 import { UserRole, UserCreateData, UserUpdateData } from '../../types/user';
+import { EnvelopeIcon } from '../icons/CustomIcons';
 
 // Schema para validación de edición
 const editUserSchema = z.object({
@@ -14,13 +15,17 @@ const editUserSchema = z.object({
   email: z.string().email('Email inválido'),
   cedula: z.string().min(1, 'La cédula es requerida'),
   telefono: z.string().min(1, 'El teléfono es requerido'),
-  rol: z.nativeEnum(UserRole)
+  rol: z.nativeEnum(UserRole, {
+    errorMap: () => ({ message: 'Por favor seleccione un rol' })
+  })
 });
 
 // Schema para creación (solo email y rol)
 const createUserSchema = z.object({
   email: z.string().email('Email inválido'),
-  rol: z.nativeEnum(UserRole)
+  rol: z.nativeEnum(UserRole, {
+    errorMap: () => ({ message: 'Por favor seleccione un rol' })
+  })
 });
 
 type FormValues = {
@@ -54,10 +59,10 @@ export function UserFormModal({ isOpen, onClose, onSubmit, mode = 'create', init
       email: initialData?.email || '',
       cedula: initialData?.cedula || '',
       telefono: initialData?.telefono || '',
-      rol: initialData?.rol || UserRole.COLABORADOR
+      rol: initialData?.rol
     } : {
       email: '',
-      rol: UserRole.COLABORADOR
+      rol: undefined
     }
   });
 
@@ -86,32 +91,7 @@ export function UserFormModal({ isOpen, onClose, onSubmit, mode = 'create', init
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <form onSubmit={handleSubmit(onSubmitHandler)} className="space-y-6 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {mode === 'edit' && (
-            <>
-              <TextField
-                label="Nombre Completo"
-                {...register('nombre' as keyof CurrentFormValues)}
-                error={errors['nombre' as keyof CurrentFormValues]?.message}
-                placeholder="Ingrese el nombre completo"
-                defaultValue={initialData?.nombre}
-              />
-              <TextField
-                label="Cédula de Identidad"
-                {...register('cedula' as keyof CurrentFormValues)}
-                error={errors['cedula' as keyof CurrentFormValues]?.message}
-                placeholder="Ingrese el número de cédula"
-                defaultValue={initialData?.cedula}
-              />
-              <TextField
-                label="Teléfono"
-                {...register('telefono' as keyof CurrentFormValues)}
-                error={errors['telefono' as keyof CurrentFormValues]?.message}
-                placeholder="+593..."
-                defaultValue={initialData?.telefono}
-              />
-            </>
-          )}
+        <div className="grid grid-cols-1 gap-6">
           <TextField
             label="Correo Electrónico"
             {...register('email')}
@@ -119,16 +99,19 @@ export function UserFormModal({ isOpen, onClose, onSubmit, mode = 'create', init
             placeholder="ejemplo@dominio.com"
             type="email"
             defaultValue={initialData?.email}
+            icon={<EnvelopeIcon className="w-5 h-5" />}
+            className="bg-gray-50 dark:bg-gray-800"
           />
           <SelectField
             label="Rol del Usuario"
             {...register('rol')}
             error={errors.rol?.message}
-            defaultValue={initialData?.rol}
+            defaultValue={initialData?.rol || undefined}
+            className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
           >
             <option value="">Seleccione un rol</option>
-            <option value="ADMIN">Administrador</option>
-            <option value="COLABORADOR">Colaborador</option>
+            <option value={UserRole.ADMIN}>Administrador</option>
+            <option value={UserRole.COLABORADOR}>Colaborador</option>
           </SelectField>
         </div>
 
@@ -138,11 +121,11 @@ export function UserFormModal({ isOpen, onClose, onSubmit, mode = 'create', init
             onClick={onClose}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="px-4 py-2 text-sm font-medium rounded-lg
+            className="px-4 py-2.5 text-sm font-medium rounded-xl
                      text-gray-700 dark:text-gray-200
-                     bg-white dark:bg-dark-700
-                     hover:bg-gray-50 dark:hover:bg-dark-600
-                     border border-gray-300 dark:border-dark-500
+                     bg-white dark:bg-gray-800
+                     hover:bg-gray-50 dark:hover:bg-gray-700
+                     border border-gray-300 dark:border-gray-600
                      transition-all duration-200"
           >
             Cancelar
@@ -152,11 +135,12 @@ export function UserFormModal({ isOpen, onClose, onSubmit, mode = 'create', init
             disabled={loading}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="px-4 py-2 text-sm font-medium rounded-lg
-                     text-white bg-primary-600 hover:bg-primary-700
+            className="px-6 py-2.5 text-sm font-medium rounded-xl
+                     text-white bg-primary-500 hover:bg-primary-600
                      disabled:opacity-50 disabled:cursor-not-allowed
                      transition-all duration-200
-                     flex items-center gap-2"
+                     flex items-center gap-2
+                     shadow-sm shadow-primary-500/20"
           >
             {loading ? (
               <>

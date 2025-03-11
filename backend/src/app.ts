@@ -14,19 +14,23 @@ dotenv.config();
 
 const app = express();
 
-// Middlewares
+// Middlewares básicos
 app.use(cors({
-  origin: 'http://localhost:3001', // Permitir el frontend
-  credentials: true
+  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json());
-app.use('/public', express.static('public'));
+app.use(express.urlencoded({ extended: true }));
+
+// Configurar directorio de archivos estáticos
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Configurar Swagger
+// Configurar Swagger antes de las rutas API
 setupSwagger(app);
 
-// Rutas
+// Rutas API
 app.use('/api/users', userRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api', routes);

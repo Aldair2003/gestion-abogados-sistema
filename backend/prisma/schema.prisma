@@ -17,15 +17,29 @@ enum EstadoProfesional {
   GRADUADO
 }
 
+enum TipoDocumento {
+  CEDULA
+  CERTIFICADO_VOTACION
+  MATRICULA_VEHICULO
+  LICENCIA
+  RUC
+  CERTIFICADO_RESIDENCIA
+}
+
 enum ActivityCategory {
   AUTH
   USER
   PROFILE
   SYSTEM
   PERMISSION
+  PERMISSION_CHANGE
   ADMINISTRATIVE
   ACCOUNT_STATUS
   SESSION
+  CANTON
+  JUEZ
+  PERSONA
+  DOCUMENTO
 }
 
 model User {
@@ -54,6 +68,9 @@ model User {
   activityLogs       ActivityLog[]
   notifications      Notification[]
   permissions        UserPermission[]
+  cantonPermissions  CantonPermission[]
+  personaPermissions PersonaPermission[]
+  permissionLogs     PermissionLog[]
 
   @@map("users")
 }
@@ -89,12 +106,14 @@ model ActivityLog {
   details     Json?
   isImportant Boolean         @default(false)
   createdAt   DateTime        @default(now())
-  user        User            @relation(fields: [userId], references: [id])
+  
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([category])
   @@index([action])
   @@index([isImportant])
+  @@map("activity_logs")
 }
 
 model Province {
@@ -118,4 +137,157 @@ model Notification {
 
   @@index([userId])
   @@index([type])
+}
+
+model Canton {
+  id          Int           @id @default(autoincrement())
+  nombre      String
+  codigo      String        @unique
+  imagenUrl   String?
+  isActive    Boolean       @default(true)
+  jueces      JuezCanton[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdBy   Int          // ID del usuario que creó
+  updatedBy   Int          // ID del último usuario que modificó
+  permissions CantonPermission[]
+  personas    Persona[]
+  personaPermisos PersonaPermission[]
+  permissionLogs PermissionLog[]
+
+  @@index([codigo])
+}
+
+model Juez {
+  id        Int           @id @default(autoincrement())
+  nombre    String
+  cantones  JuezCanton[]
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  createdBy Int          // ID del usuario que creó
+  updatedBy Int          // ID del último usuario que modificó
+}
+
+model JuezCanton {
+  id        Int      @id @default(autoincrement())
+  juezId    Int
+  cantonId  Int
+  juez      Juez     @relation(fields: [juezId], references: [id])
+  canton    Canton   @relation(fields: [cantonId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([juezId, cantonId])
+  @@index([juezId])
+  @@index([cantonId])
+}
+
+model Persona {
+  id                  Int         @id @default(autoincrement())
+  cedula              String      @unique
+  nombres             String      // Nombres de la persona
+  apellidos           String      // Apellidos de la persona
+  telefono            String
+  contactoRef         String?
+  email               String?
+  domicilio          String?
+  cantonId           Int         // Cantón al que pertenece la persona
+  matriculasVehiculo String[]    // Array de matrículas
+  documentos         Documento[]
+  isActive           Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  createdBy          Int         // ID del usuario que creó
+  updatedBy          Int         // ID del último usuario que modificó
+  permissions        PersonaPermission[]
+  permissionLogs     PermissionLog[]
+  canton             Canton      @relation(fields: [cantonId], references: [id])
+
+  @@index([cedula])
+  @@index([cantonId])
+}
+
+model Documento {
+  id          Int           @id @default(autoincrement())
+  tipo        TipoDocumento
+  url         String
+  filename    String        // Nombre original del archivo
+  mimetype    String        // Tipo MIME del archivo
+  size        Int          // Tamaño en bytes
+  personaId   Int
+  persona     Persona       @relation(fields: [personaId], references: [id])
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdBy   Int          // ID del usuario que creó
+  updatedBy   Int          // ID del último usuario que modificó
+
+  @@index([personaId])
+  @@index([tipo])
+}
+
+/// Permisos de personas para colaboradores
+model PersonaPermission {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  personaId Int
+  cantonId  Int      // Cantón al que pertenece el permiso
+  canView   Boolean  @default(true)
+  canCreate Boolean  @default(false)
+  canEdit   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  persona Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  canton  Canton  @relation(fields: [cantonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, personaId])
+  @@index([userId])
+  @@index([personaId])
+  @@index([cantonId])
+  @@map("persona_permissions")
+}
+
+/// Permisos de cantones para colaboradores
+model CantonPermission {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  cantonId  Int
+  canView   Boolean  @default(true)
+  canCreate Boolean  @default(false)
+  canEdit   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canton Canton @relation(fields: [cantonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cantonId])
+  @@index([userId])
+  @@index([cantonId])
+  @@map("canton_permissions")
+}
+
+/// Registro de cambios en permisos
+model PermissionLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  targetId  Int      // ID del registro afectado (canton o persona)
+  cantonId  Int?     // Opcional: ID del cantón relacionado
+  personaId Int?     // Opcional: ID de la persona relacionada
+  action    String   // Tipo de acción realizada
+  details   String?  // Detalles adicionales en formato JSON
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id])
+  canton  Canton?  @relation(fields: [cantonId], references: [id])
+  persona Persona? @relation(fields: [personaId], references: [id])
+
+  @@index([userId])
+  @@index([targetId])
+  @@index([cantonId])
+  @@index([personaId])
+  @@map("permission_logs")
 }

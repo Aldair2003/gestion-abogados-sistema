@@ -1,24 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
-import { Activity } from '../types/user';
-
-interface ActivityFilters {
-  userId?: number;
-  targetId?: number;
-  category?: string;
-  action?: string;
-  startDate?: string;
-  endDate?: string;
-  isImportant?: boolean;
-  page?: number;
-  limit?: number;
-  metadata?: {
-    browser?: string;
-    os?: string;
-    location?: string;
-    ipAddress?: string;
-  };
-}
+import { Activity, ActivityFilters } from '../types/activity';
 
 interface PaginationInfo {
   currentPage: number;
@@ -28,15 +10,8 @@ interface PaginationInfo {
 
 interface ActivitySummary {
   total: number;
-  last30Days: {
-    total: number;
-    byCategory: Record<string, number>;
-  };
-  mostFrequent: Array<{
-    action: string;
-    count: number;
-    category: string;
-  }>;
+  byType: Record<string, number>;
+  byDate: Record<string, number>;
 }
 
 export const useActivityLogs = (initialFilters?: ActivityFilters) => {
@@ -134,14 +109,14 @@ export const useActivityLogs = (initialFilters?: ActivityFilters) => {
     setFilters({});
   }, []);
 
-  const toggleImportance = useCallback(async (activityId: number) => {
+  const toggleImportance = useCallback(async (activityId: string) => {
     try {
       const response = await api.patch(`/api/activity/logs/${activityId}/toggle-importance`);
       
       if (response.data) {
         setLogs(prevLogs => 
           prevLogs.map(log => 
-            log.id === activityId 
+            log.id === Number(activityId)
               ? { 
                   ...log, 
                   details: { 

@@ -1,5 +1,5 @@
 export interface UserInfo {
-  id: number;
+  id: string;
   nombre?: string;
   email: string;
   rol: string;
@@ -28,14 +28,62 @@ export interface ActivityDetails {
   };
 }
 
+export interface ActivityFilters {
+  userId?: string;
+  targetId?: string;
+  category?: string;
+  action?: 'assign' | 'update' | 'revoke' | string;
+  startDate?: string;
+  endDate?: string;
+  type?: 'canton' | 'persona' | string;
+  isImportant?: boolean;
+  page?: number;
+  limit?: number;
+  cantonId?: string;
+  personaId?: string;
+  metadata?: {
+    browser?: string;
+    os?: string;
+    location?: string;
+    ipAddress?: string;
+  };
+}
+
 export interface Activity {
   id: number;
   userId: number;
   action: string;
   category: string;
-  targetId?: number;
-  details?: ActivityDetails;
+  details: ActivityDetails;
   createdAt: string;
-  user?: UserInfo;
-  target?: UserInfo;
+  isImportant: boolean;
+  userName?: string;
+  userEmail?: string;
+  timestamp?: string;
+}
+
+export interface PermissionActivity extends Omit<Activity, 'details'> {
+  type: 'canton' | 'persona';
+  action: 'assign' | 'update' | 'revoke';
+  resourceId: string;
+  resourceName: string;
+  resourceDetail: string;
+  details: {
+    before?: {
+      permissions: {
+        view: boolean;
+        edit: boolean;
+        delete: boolean;
+        createExpedientes: boolean;
+      };
+    };
+    after?: {
+      permissions: {
+        view: boolean;
+        edit: boolean;
+        delete: boolean;
+        createExpedientes: boolean;
+      };
+    };
+  };
 } 

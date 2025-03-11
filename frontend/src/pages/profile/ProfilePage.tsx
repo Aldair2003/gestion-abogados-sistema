@@ -7,6 +7,7 @@ import { showToast } from '../../utils/toast';
 import { getPhotoUrl } from '../../utils/urls';
 import api from '../../services/api';
 import { EstadoProfesional } from '../../types/user';
+import { User } from '../../types/user';
 
 interface ProfileFormData {
   nombre: string;
@@ -136,6 +137,16 @@ export const ProfilePage = () => {
       setIsUpdating(true);
       setShowContent(false);
 
+      // Asegurarnos de que tenemos todos los campos requeridos
+      if (!user?.id) {
+        throw new Error('Usuario no válido');
+      }
+
+      let updatedUserData: User = {
+        ...user,
+        isProfileCompleted: true
+      };
+
       // Si hay una foto nueva para subir
       if (formData.photoFile) {
         const photoFormData = new FormData();
@@ -148,12 +159,14 @@ export const ProfilePage = () => {
         });
 
         if (photoResponse.data) {
-          // Actualizar el contexto del usuario con la nueva foto
-          await updateUser({
-            ...user,
+          updatedUserData = {
+            ...updatedUserData,
             ...photoResponse.data,
-            photoUrl: photoResponse.data.photoUrl
-          });
+            photoUrl: photoResponse.data.photoUrl,
+            id: user.id, // Mantener el ID original
+            isProfileCompleted: true
+          };
+          await updateUser(updatedUserData);
         }
       }
 
@@ -168,22 +181,34 @@ export const ProfilePage = () => {
       if (Object.keys(changedFields).length > 0) {
         const response = await api.put('/users/me/profile', changedFields);
         if (response.data) {
-          // Asegurarse de mantener la URL de la foto al actualizar otros campos
-          await updateUser({
+          updatedUserData = {
+            ...updatedUserData,
             ...response.data,
-            photoUrl: formData.photoFile ? response.data.photoUrl : user?.photoUrl
-          });
+            photoUrl: formData.photoFile ? response.data.photoUrl : updatedUserData.photoUrl,
+            id: user.id, // Mantener el ID original
+            isProfileCompleted: true
+          };
+          await updateUser(updatedUserData);
         }
       }
 
-      // Pequeña pausa antes de mostrar el contenido actualizado
+      // Actualizar el estado local con los datos actualizados
+      setFormData({
+        nombre: updatedUserData.nombre || '',
+        cedula: updatedUserData.cedula || '',
+        telefono: updatedUserData.telefono || '',
+        domicilio: updatedUserData.domicilio || '',
+        estadoProfesional: updatedUserData.estadoProfesional,
+        numeroMatricula: updatedUserData.numeroMatricula,
+        universidad: updatedUserData.universidad
+      });
+
       await new Promise(resolve => setTimeout(resolve, 500));
       
       showToast.success('Perfil Actualizado', 'Sus datos han sido actualizados exitosamente');
       setIsEditing(false);
       setShowContent(true);
 
-      // Limpiar URL temporal y archivo
       if (formData.tempPhotoUrl) {
         URL.revokeObjectURL(formData.tempPhotoUrl);
       }
@@ -192,6 +217,12 @@ export const ProfilePage = () => {
         tempPhotoUrl: undefined,
         photoFile: undefined
       }));
+
+      // Forzar una actualización de los datos del usuario
+      const refreshResponse = await api.get('/users/me');
+      if (refreshResponse.data) {
+        await updateUser(refreshResponse.data);
+      }
     } catch (error: any) {
       console.error('Error al actualizar perfil:', error);
       showToast.error(

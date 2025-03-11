@@ -790,7 +790,7 @@ router.post('/forgot-password', asyncHandler(userController.forgotPassword));
  * @swagger
  * /api/users/reset-password:
  *   post:
- *     summary: Restablecer contraseña con token
+ *     
  *     tags: [Authentication]
  *     requestBody:
  *       required: true
@@ -921,5 +921,8 @@ router.get('/profile/status', userController.getProfileStatus);
 // Validaciones
 router.post('/validate/cedula', userController.validateUserCedula);
 router.post('/validate/email', userController.validateEmail);
+
+// Ruta para obtener colaboradores
+router.get('/collaborators', authMiddleware, userController.getCollaborators);
 
 export default router; 

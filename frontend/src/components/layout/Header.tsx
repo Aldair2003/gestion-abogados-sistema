@@ -92,6 +92,13 @@ export const Header = ({ className = '' }: HeaderProps) => {
     }
   };
 
+  const handlePermissions = () => {
+    console.log('Navegando a gestión de permisos...');
+    if (location.pathname !== '/admin/permisos') {
+      navigate('/admin/permisos', { replace: true });
+    }
+  };
+
   return (
     <header className={`bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 ${className}`}>
       <div className="px-6 h-16 flex items-center justify-between">
@@ -196,6 +203,25 @@ export const Header = ({ className = '' }: HeaderProps) => {
                           `}
                         >
                           Panel de administración
+                        </button>
+                      )}
+                    </Menu.Item>
+                  )}
+
+                  {isAdmin && (
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button 
+                          onClick={handlePermissions}
+                          className={`
+                            w-full text-left px-3 py-2 rounded-lg text-sm
+                            ${active 
+                              ? 'bg-gray-100 dark:bg-dark-600 text-gray-900 dark:text-white' 
+                              : 'text-gray-700 dark:text-gray-200'
+                            }
+                          `}
+                        >
+                          Gestión de Permisos
                         </button>
                       )}
                     </Menu.Item>

@@ -4,6 +4,9 @@ import { ActivityList } from '../../components/activity/ActivityList';
 import { TextField } from '../../components/common/TextField';
 import { motion } from 'framer-motion';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { Tab } from '@headlessui/react';
+import { PermissionActivityList } from '../../components/activity/PermissionActivityList';
+import { ActivityFilters } from '../../types/activity';
 
 // Componente de ícono personalizado
 const FunnelIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -22,6 +25,22 @@ const FunnelIcon: React.FC<{ className?: string }> = ({ className }) => (
     />
   </svg>
 );
+
+function classNames(...classes: string[]) {
+  return classes.filter(Boolean).join(' ');
+}
+
+const convertToPermissionFilters = (filters: ActivityFilters) => {
+  return {
+    userId: filters.userId,
+    cantonId: filters.cantonId,
+    personaId: filters.personaId,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    type: filters.type as 'canton' | 'persona' | undefined,
+    action: filters.action as 'assign' | 'update' | 'revoke' | undefined
+  };
+};
 
 export const ActivityLogs = () => {
   const { 
@@ -42,107 +61,74 @@ export const ActivityLogs = () => {
     updateFilters({ [field]: value });
   };
 
+  const categories = [
+    {
+      id: 'all',
+      name: 'Todas las Actividades',
+      description: 'Ver todas las actividades del sistema'
+    },
+    {
+      id: 'permissions',
+      name: 'Permisos',
+      description: 'Ver cambios en permisos de cantones y personas'
+    }
+  ];
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          Registro de Actividad
-        </h2>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 
-            bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg 
-            hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200"
-        >
-          <FunnelIcon className="w-4 h-4" />
-          Filtros
-        </button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          Historial de Actividades
+        </h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          Revise todas las actividades y cambios realizados en el sistema
+        </p>
       </div>
 
-      {/* Panel de Filtros */}
-      {showFilters && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-200 dark:border-gray-700"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Filtros</h3>
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+      <Tab.Group>
+        <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
+          {categories.map((category) => (
+            <Tab
+              key={category.id}
+              className={({ selected }) =>
+                classNames(
+                  'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
+                  'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2',
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-white/[0.12] hover:text-blue-600 dark:hover:text-blue-400'
+                )
+              }
             >
-              <XMarkIcon className="w-4 h-4" />
-              Limpiar filtros
-            </button>
-          </div>
+              {category.name}
+            </Tab>
+          ))}
+        </Tab.List>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <TextField
-              label="Usuario ID"
-              type="number"
-              value={filters.userId || ''}
-              onChange={(e) => handleFilterChange('userId', e.target.value ? Number(e.target.value) : undefined)}
-              placeholder="Filtrar por ID de usuario"
+        <Tab.Panels className="mt-4">
+          <Tab.Panel
+            className={classNames(
+              'rounded-xl bg-white dark:bg-gray-800 p-6',
+              'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2'
+            )}
+          >
+            <ActivityList 
+              activities={logs} 
+              loading={loading} 
+              filters={filters} 
             />
-            <TextField
-              label="Acción"
-              type="text"
-              value={filters.action || ''}
-              onChange={(e) => handleFilterChange('action', e.target.value)}
-              placeholder="Tipo de acción"
-            />
-            <TextField
-              label="Fecha Inicio"
-              type="date"
-              value={filters.startDate || ''}
-              onChange={(e) => handleFilterChange('startDate', e.target.value)}
-            />
-          </div>
-        </motion.div>
-      )}
+          </Tab.Panel>
 
-      {/* Lista de Actividades */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-        <ActivityList 
-          activities={logs}
-          loading={loading}
-        />
-        
-        {/* Paginación */}
-        {!loading && logs.length > 0 && (
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-              <span>
-                Mostrando {logs.length} de {pagination.totalItems} registros
-              </span>
-              {hasMore && (
-                <button
-                  onClick={loadMore}
-                  className="px-4 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 
-                    hover:text-primary-700 dark:hover:text-primary-300"
-                >
-                  Cargar más
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Mensaje de Error */}
-        {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 border-t border-red-200 dark:border-red-800">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          </div>
-        )}
-
-        {/* Sin Resultados */}
-        {!loading && !error && logs.length === 0 && (
-          <div className="p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400">No se encontraron registros de actividad</p>
-          </div>
-        )}
-      </div>
+          <Tab.Panel
+            className={classNames(
+              'rounded-xl bg-white dark:bg-gray-800 p-6',
+              'ring-white/60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2'
+            )}
+          >
+            <PermissionActivityList filters={convertToPermissionFilters(filters)} />
+          </Tab.Panel>
+        </Tab.Panels>
+      </Tab.Group>
     </div>
   );
 }; 

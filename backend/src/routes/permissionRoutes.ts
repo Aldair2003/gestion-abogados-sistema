@@ -1,6 +1,17 @@
 import { Router } from 'express';
-import { getUserPermissions } from '../controllers/permissionController';
 import { authMiddleware } from '../middlewares/auth';
+import {
+  getAllCantonPermissions,
+  assignCantonPermission,
+  revokeCantonPermission,
+  getPersonaPermissions,
+  assignPersonaPermission,
+  revokePersonaPermission,
+  getPermissionLogs,
+  getPermissionsByCanton,
+  assignMultipleCantonPermissions,
+  getAssignedCantones
+} from '../controllers/permissionController';
 
 const router = Router();
 
@@ -55,42 +66,263 @@ const router = Router();
  *             canViewOwnCases:
  *               type: boolean
  *               description: Permiso para ver casos propios
+ *     CantonPermission:
+ *       type: object
+ *       properties:
+ *         userId:
+ *           type: integer
+ *           description: ID del usuario
+ *         cantonId:
+ *           type: integer
+ *           description: ID del cantón
+ *         canView:
+ *           type: boolean
+ *           description: Permiso para ver información
+ *         canCreate:
+ *           type: boolean
+ *           description: Permiso para crear registros
+ *         canEdit:
+ *           type: boolean
+ *           description: Permiso para editar información
+ *     
+ *     PersonaPermission:
+ *       type: object
+ *       properties:
+ *         userId:
+ *           type: integer
+ *           description: ID del usuario
+ *         personaId:
+ *           type: integer
+ *           description: ID de la persona
+ *         cantonId:
+ *           type: integer
+ *           description: ID del cantón asociado
+ *         canView:
+ *           type: boolean
+ *           description: Permiso para ver información
+ *         canCreate:
+ *           type: boolean
+ *           description: Permiso para crear registros
+ *         canEditOwn:
+ *           type: boolean
+ *           description: Permiso para editar registros propios
  * 
- * /api/permissions/user:
- *   get:
- *     summary: Obtener permisos del usuario actual
- *     tags: [Permissions]
- *     security:
- *       - bearerAuth: []
- *     description: Obtiene los permisos basados en el rol del usuario autenticado
- *     responses:
- *       200:
- *         description: Permisos obtenidos exitosamente
+ * paths:
+ *   /api/permissions/user:
+ *     get:
+ *       summary: Obtener permisos del usuario actual
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       responses:
+ *         200:
+ *           description: Permisos obtenidos exitosamente
+ *         401:
+ *           description: No autorizado
+ * 
+ *   /api/permissions/canton/assign:
+ *     post:
+ *       summary: Asignar permisos de cantón
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       requestBody:
+ *         required: true
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Permissions'
- *             example:
- *               userId: 1
- *               rol: "admin"
- *               isActive: true
- *               permissions:
- *                 canCreateUsers: true
- *                 canEditUsers: true
- *                 canDeleteUsers: true
- *                 canViewUsers: true
- *                 canAssignRoles: true
- *                 canViewOwnProfile: true
- *                 canEditOwnProfile: true
- *                 canCreateCases: true
- *                 canViewOwnCases: true
- *       401:
- *         description: No autorizado - Token no válido o expirado
- *       403:
- *         description: Prohibido - No tiene permisos suficientes
- *       500:
- *         description: Error interno del servidor
+ *               $ref: '#/components/schemas/CantonPermission'
+ *       responses:
+ *         201:
+ *           description: Permisos asignados exitosamente
+ *         400:
+ *           description: Error de validación
+ *         403:
+ *           description: No autorizado
+ * 
+ *   /api/permissions/canton/{userId}:
+ *     get:
+ *       summary: Obtener permisos de cantón de un usuario
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: path
+ *           name: userId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *       responses:
+ *         200:
+ *           description: Permisos obtenidos exitosamente
+ *         403:
+ *           description: No autorizado
+ * 
+ *   /api/permissions/canton/{cantonId}/permissions:
+ *     get:
+ *       summary: Obtener todos los permisos de un cantón
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: path
+ *           name: cantonId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *       responses:
+ *         200:
+ *           description: Permisos obtenidos exitosamente
+ *         403:
+ *           description: No autorizado
+ * 
+ *   /api/permissions/persona/assign:
+ *     post:
+ *       summary: Asignar permisos de persona
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       requestBody:
+ *         required: true
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PersonaPermission'
+ *       responses:
+ *         201:
+ *           description: Permisos asignados exitosamente
+ *         400:
+ *           description: Error de validación
+ *         403:
+ *           description: No autorizado
+ * 
+ *   /api/permissions/persona/{userId}:
+ *     get:
+ *       summary: Obtener permisos de persona de un usuario
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: path
+ *           name: userId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *       responses:
+ *         200:
+ *           description: Permisos obtenidos exitosamente
+ *         403:
+ *           description: No autorizado
+ * 
+ *   /api/permissions/canton/revoke/{userId}/{cantonId}:
+ *     delete:
+ *       summary: Revocar permisos de cantón
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: path
+ *           name: userId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *         - in: path
+ *           name: cantonId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *       responses:
+ *         200:
+ *           description: Permisos revocados exitosamente
+ *         403:
+ *           description: No autorizado
+ *         404:
+ *           description: Usuario o cantón no encontrado
+ * 
+ *   /api/permissions/persona/revoke/{userId}/{personaId}:
+ *     delete:
+ *       summary: Revocar permisos de persona
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: path
+ *           name: userId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *         - in: path
+ *           name: personaId
+ *           required: true
+ *           schema:
+ *             type: integer
+ *       responses:
+ *         200:
+ *           description: Permisos revocados exitosamente
+ *         403:
+ *           description: No autorizado
+ *         404:
+ *           description: Usuario o persona no encontrado
+ * 
+ *   /api/permissions/logs:
+ *     get:
+ *       summary: Obtener historial de cambios de permisos
+ *       tags: [Permissions]
+ *       security:
+ *         - bearerAuth: []
+ *       parameters:
+ *         - in: query
+ *           name: page
+ *           schema:
+ *             type: integer
+ *           description: Número de página
+ *         - in: query
+ *           name: limit
+ *           schema:
+ *             type: integer
+ *           description: Registros por página
+ *         - in: query
+ *           name: startDate
+ *           schema:
+ *             type: string
+ *             format: date
+ *           description: Fecha inicial (YYYY-MM-DD)
+ *         - in: query
+ *           name: endDate
+ *           schema:
+ *             type: string
+ *             format: date
+ *           description: Fecha final (YYYY-MM-DD)
+ *         - in: query
+ *           name: action
+ *           schema:
+ *             type: string
+ *           description: Tipo de acción (GRANT_CANTON_ACCESS, REVOKE_CANTON_ACCESS, etc)
+ *       responses:
+ *         200:
+ *           description: Lista de cambios obtenida exitosamente
+ *         403:
+ *           description: No autorizado
  */
-router.get('/user', authMiddleware, getUserPermissions);
+
+// Rutas protegidas - requieren autenticación
+router.use(authMiddleware);
+
+// Permisos de cantones
+router.get('/canton', getAllCantonPermissions);
+router.get('/canton/assigned', getAssignedCantones);
+router.post('/canton/assign', assignMultipleCantonPermissions);
+router.get('/cantones/:cantonId', getPermissionsByCanton);
+router.post('/cantones/:cantonId/usuarios/:userId', assignCantonPermission);
+router.delete('/cantones/:cantonId/usuarios/:userId', revokeCantonPermission);
+
+// Permisos de personas
+router.get('/personas', getPersonaPermissions);
+router.get('/personas/:personaId/usuarios/:userId', getPersonaPermissions);
+router.post('/personas/:personaId/usuarios/:userId', assignPersonaPermission);
+router.delete('/personas/:personaId/usuarios/:userId', revokePersonaPermission);
+
+// Historial de permisos
+router.get('/historial', getPermissionLogs);
 
 export default router; 

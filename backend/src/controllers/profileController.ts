@@ -1,11 +1,28 @@
 import { Response } from 'express';
 import { RequestWithUser } from '../types/user';
 import { prisma } from '../lib/prisma';
-import { validateCedula, validatePhone } from '../utils/validators';
+import { validateCedula, validateTelefono } from '../utils/validators';
 import { logActivity } from '../services/logService';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../types/notification';
-import { Prisma, ActivityCategory } from '@prisma/client';
+import { ActivityCategory, Prisma } from '.prisma/client';
+
+// Helper para serializar objetos con fechas y tipos complejos
+const serializeForLog = (obj: any): any => {
+  if (!obj) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(serializeForLog);
+  }
+  if (obj instanceof Date) {
+    return obj.toISOString();
+  }
+  if (typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, value]) => [key, serializeForLog(value)])
+    );
+  }
+  return obj;
+};
 
 export const getUserProfile = async (req: RequestWithUser, res: Response) => {
   try {
@@ -55,7 +72,7 @@ export const updateUserProfile = async (req: RequestWithUser, res: Response) => 
       return res.status(400).json({ message: 'Cédula inválida' });
     }
 
-    if (profileData.telefono && !validatePhone(profileData.telefono)) {
+    if (profileData.telefono && !validateTelefono(profileData.telefono)) {
       return res.status(400).json({ message: 'Formato de teléfono inválido' });
     }
 
@@ -72,8 +89,8 @@ export const updateUserProfile = async (req: RequestWithUser, res: Response) => 
       details: {
         description: 'Actualización de perfil de usuario',
         changes: {
-          before: req.user,
-          after: updatedUser
+          before: serializeForLog(req.user),
+          after: serializeForLog(updatedUser)
         },
         metadata: {
           updatedFields: Object.keys(profileData),
@@ -166,7 +183,7 @@ export const updatePersonalProfile = async (
 
     if (req.body.telefono) {
       // Validar formato de teléfono
-      if (!validatePhone(req.body.telefono)) {
+      if (!validateTelefono(req.body.telefono)) {
         res.status(400).json({
           status: 'error',
           message: 'El formato del teléfono no es válido (debe ser 09XXXXXXXX)',
@@ -225,8 +242,8 @@ export const updatePersonalProfile = async (
       details: {
         description: 'Actualización de perfil personal',
         changes: {
-          before: existingUser,
-          after: updatedUser
+          before: serializeForLog(existingUser),
+          after: serializeForLog(updatedUser)
         },
         metadata: {
           updatedFields: Object.keys(updateData),

@@ -3,9 +3,9 @@ import { login, register, forgotPassword, resetPassword } from '../controllers/u
 import { isAuthenticated, RequestWithUser } from '../middlewares/auth';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
-import { ApiErrorCode } from '../types/api';
+import { ApiErrorCode } from '../types/apiError';
 import { logActivity } from '../services/logService';
-import { ActivityCategory } from '@prisma/client';
+import { ActivityCategory } from '../types/prisma';
 
 const router = Router();
 
@@ -16,19 +16,54 @@ router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 
 // Ruta para mantener la sesión activa
-router.post('/keep-alive', isAuthenticated, (req: RequestWithUser, res: Response) => {
-  const token = jwt.sign(
-    { 
-      id: req.user!.id,
-      email: req.user!.email,
-      rol: req.user!.rol,
-      lastActivity: new Date().toISOString()
-    },
-    process.env.JWT_SECRET!,
-    { expiresIn: '15m' }
-  );
+router.post('/keep-alive', isAuthenticated, async (req: RequestWithUser, res: Response) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      throw new Error('Usuario no encontrado');
+    }
 
-  res.json({ token });
+    // Generar nuevo token con tiempo de actividad actualizado
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        rol: user.rol,
+        lastActivity: new Date().toISOString()
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '1h' }
+    );
+
+    // Registrar la actividad
+    await logActivity(user.id, 'SESSION_KEEP_ALIVE', {
+      category: ActivityCategory.AUTH,
+      details: {
+        description: 'Sesión mantenida activa',
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
+        }
+      }
+    });
+
+    res.json({
+      status: 'success',
+      message: 'Sesión actualizada',
+      data: { token }
+    });
+  } catch (error) {
+    console.error('Error al mantener la sesión activa:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error al mantener la sesión activa',
+      error: {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Error al mantener la sesión activa',
+        details: error instanceof Error ? error.message : 'Error desconocido'
+      }
+    });
+  }
 });
 
 // Ruta para refrescar el token
@@ -143,6 +178,7 @@ router.post('/logout', isAuthenticated, async (req: RequestWithUser, res: Respon
       await logActivity(req.user.id, 'LOGOUT', {
         category: ActivityCategory.AUTH,
         details: {
+          description: 'Cierre de sesión',
           metadata: {
             ipAddress: req.ip,
             userAgent: req.headers['user-agent']

@@ -1,9 +1,9 @@
 import { Request } from 'express';
+import { User } from '@prisma/client';
+import { CantonPermissionAttributes, PersonaPermissionAttributes } from './permissions';
 
 export interface RequestWithUser extends Request {
-  user?: {
-    id: number;
-    email: string;
-    rol: string;
-  };
+  user?: User;
+  cantonPermissions?: CantonPermissionAttributes;
+  personaPermissions?: PersonaPermissionAttributes;
 } 

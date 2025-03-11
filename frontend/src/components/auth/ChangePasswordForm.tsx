@@ -1,19 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { TextField } from '../common/TextField';
-import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
-import { showToast } from '../../utils/toast';
-import { motion } from 'framer-motion';
+import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
 interface ChangePasswordFormProps {
-  onPasswordChanged: () => void;
+  onPasswordChanged?: () => void;
   isCompleted?: boolean;
   compact?: boolean;
-  initialPassword?: string;
 }
 
 const passwordSchema = z.object({
@@ -23,8 +20,8 @@ const passwordSchema = z.object({
     .regex(/[A-Z]/, 'Debe contener al menos una mayúscula')
     .regex(/[a-z]/, 'Debe contener al menos una minúscula')
     .regex(/[0-9]/, 'Debe contener al menos un número')
-    .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Debe contener al menos un carácter especial'),
-  confirmPassword: z.string().min(1, 'Debe confirmar la contraseña')
+    .regex(/[!@#$%^&*]/, 'Debe contener al menos un carácter especial (!@#$%^&*)'),
+  confirmPassword: z.string()
 }).refine((data) => data.newPassword === data.confirmPassword, {
   message: "Las contraseñas no coinciden",
   path: ["confirmPassword"],
@@ -35,48 +32,49 @@ type FormValues = z.infer<typeof passwordSchema>;
 export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({ 
   onPasswordChanged,
   isCompleted = false,
-  compact = false,
-  initialPassword = 'Temporal12345@'
+  compact = false
 }) => {
-  const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset,
-    setValue
-  } = useForm<FormValues>({
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { user, updateUser } = useAuth();
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormValues>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
-      currentPassword: initialPassword
+      currentPassword: 'Temporal12345@'
     }
   });
 
-  useEffect(() => {
-    setValue('currentPassword', initialPassword);
-  }, [initialPassword, setValue]);
-
   const onSubmit = async (data: FormValues) => {
-    setLoading(true);
+    if (loading || isCompleted) return;
+
     try {
+      setLoading(true);
       const response = await api.post('/users/change-password', {
         currentPassword: data.currentPassword,
         newPassword: data.newPassword
       });
-      
-      showToast.success('¡Éxito!', 'Contraseña actualizada correctamente');
-      if (user) {
-        await updateUser({
-          ...user,
-          isTemporaryPassword: response.data.isTemporaryPassword
-        });
+
+      if (response.data) {
+        // Actualizar el estado del usuario
+        if (user) {
+          const updatedUser = {
+            ...user,
+            isTemporaryPassword: false
+          };
+          await updateUser(updatedUser);
+        }
+
+        reset();
+        toast.success('Contraseña actualizada exitosamente');
+        if (onPasswordChanged) {
+          onPasswordChanged();
+        }
       }
-      reset();
-      onPasswordChanged();
     } catch (error: any) {
-      showToast.error('Error', error.response?.data?.message || 'Error al cambiar la contraseña');
+      const errorMessage = error.response?.data?.message || 'Error al cambiar la contraseña';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -99,74 +97,165 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className={`space-y-${compact ? '3' : '6'}`}>
-      <div className={`grid grid-cols-1 gap-${compact ? '3' : '6'}`}>
-        <div className="relative">
-          <TextField
-            label="Contraseña Temporal"
-            type="password"
-            {...register('currentPassword')}
-            error={errors.currentPassword?.message}
-            placeholder="Ingrese su contraseña temporal"
-            compact={compact}
-            defaultValue={initialPassword}
-            showPasswordToggle={true}
-            initialShowPassword={true}
-          />
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+      <div className="space-y-3">
+        {/* Contraseña Temporal */}
+        <div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-gray-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+              </svg>
+            </div>
+            <input
+              type={showCurrentPassword ? "text" : "password"}
+              {...register('currentPassword')}
+              className={`block w-full pl-10 pr-10 py-2 text-sm
+                border ${errors.currentPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} 
+                rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
+                bg-white/70 dark:bg-gray-900/70
+                text-gray-900 dark:text-white
+                placeholder-gray-500 dark:placeholder-gray-400
+                cursor-not-allowed opacity-75`}
+              placeholder="Contraseña Temporal"
+              readOnly
+            />
+            <button
+              type="button"
+              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+              className={`absolute inset-y-0 right-0 pr-3 flex items-center ${showCurrentPassword ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              {showCurrentPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          {errors.currentPassword && (
+            <p className="mt-1 text-xs text-red-500">{errors.currentPassword.message}</p>
+          )}
         </div>
 
-        <TextField
-          label="Nueva Contraseña"
-          type="password"
-          {...register('newPassword')}
-          error={errors.newPassword?.message}
-          placeholder="Ingrese su nueva contraseña"
-          compact={compact}
-          showPasswordToggle={true}
-        />
+        {/* Nueva Contraseña */}
+        <div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-gray-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <input
+              type={showNewPassword ? "text" : "password"}
+              {...register('newPassword')}
+              className={`block w-full pl-10 pr-10 py-2 text-sm
+                border ${errors.newPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} 
+                rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
+                bg-white/70 dark:bg-gray-900/70
+                text-gray-900 dark:text-white
+                placeholder-gray-500 dark:placeholder-gray-400`}
+              placeholder="Nueva Contraseña"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNewPassword(!showNewPassword)}
+              className={`absolute inset-y-0 right-0 pr-3 flex items-center ${showNewPassword ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              {showNewPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          {errors.newPassword && (
+            <p className="mt-1 text-xs text-red-500">{errors.newPassword.message}</p>
+          )}
+        </div>
 
-        <TextField
-          label="Confirmar Nueva Contraseña"
-          type="password"
-          {...register('confirmPassword')}
-          error={errors.confirmPassword?.message}
-          placeholder="Confirme su nueva contraseña"
-          compact={compact}
-          showPasswordToggle={true}
-        />
-      </div>
+        {/* Confirmar Nueva Contraseña */}
+        <div>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-4 h-4 text-gray-400">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+              </svg>
+            </div>
+            <input
+              type={showConfirmPassword ? "text" : "password"}
+              {...register('confirmPassword')}
+              className={`block w-full pl-10 pr-10 py-2 text-sm
+                border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} 
+                rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
+                bg-white/70 dark:bg-gray-900/70
+                text-gray-900 dark:text-white
+                placeholder-gray-500 dark:placeholder-gray-400`}
+              placeholder="Confirmar Nueva Contraseña"
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className={`absolute inset-y-0 right-0 pr-3 flex items-center ${showConfirmPassword ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              {showConfirmPassword ? (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          {errors.confirmPassword && (
+            <p className="mt-1 text-xs text-red-500">{errors.confirmPassword.message}</p>
+          )}
+        </div>
 
-      <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-md">
-        <div className="text-xs text-blue-700">
-          <p className="font-medium mb-1">La contraseña debe tener:</p>
-          <ul className="list-disc list-inside space-y-0.5 ml-1">
-            <li>Al menos 8 caracteres</li>
-            <li>Al menos una letra mayúscula</li>
-            <li>Al menos una letra minúscula</li>
-            <li>Al menos un número</li>
-            <li>Al menos un carácter especial (! @ # $ % ^ & * ( ) , . ? etc)</li>
+        {/* Requisitos de contraseña */}
+        <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-2.5">
+          <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1.5">
+            La contraseña debe tener:
+          </p>
+          <ul className="text-xs text-blue-600 dark:text-blue-400 space-y-1">
+            <li>• Al menos 8 caracteres</li>
+            <li>• Al menos una letra mayúscula</li>
+            <li>• Al menos una letra minúscula</li>
+            <li>• Al menos un número</li>
+            <li>• Al menos un carácter especial (! @ # $ % ^ & * () , . ? " : { } | &lt; &gt;)</li>
           </ul>
         </div>
       </div>
 
-      <motion.button
+      <button
         type="submit"
         disabled={loading}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className={`w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 
-                   disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
-                   ${compact ? 'text-sm' : ''}`}
+        className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg 
+          hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed 
+          flex items-center justify-center gap-2
+          text-sm transition-colors duration-200"
       >
         {loading ? (
           <>
             <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            <span>Guardando...</span>
+            <span>Cambiando contraseña...</span>
           </>
         ) : (
           'Cambiar Contraseña'
         )}
-      </motion.button>
+      </button>
     </form>
   );
 };

@@ -73,8 +73,14 @@ const getActivityColor = (action: string) => {
 };
 
 const getActivityDescription = (activity: Activity) => {
+  // Si hay una descripción personalizada, usarla
   if (activity.details?.description) {
     return activity.details.description;
+  }
+
+  // Si no hay acción, mostrar mensaje por defecto
+  if (!activity.action) {
+    return 'Actividad no especificada';
   }
 
   const performer = activity.details?.userInfo?.performer?.nombre || 'Usuario';
@@ -90,10 +96,25 @@ const getActivityDescription = (activity: Activity) => {
     LOGOUT: `${performer} cerró sesión`,
     UPDATE_PROFILE: `${performer} actualizó su perfil`,
     BULK_DELETE_USERS: `${performer} eliminó múltiples usuarios`,
-    BULK_ACTIVATE_USERS: `${performer} activó múltiples usuarios`
+    BULK_ACTIVATE_USERS: `${performer} activó múltiples usuarios`,
+    CREATE_PERSONA: `${performer} creó una nueva persona`,
+    UPDATE_PERSONA: `${performer} actualizó una persona`,
+    DELETE_PERSONA: `${performer} eliminó una persona`,
+    CREATE_DOCUMENTO: `${performer} subió un documento`,
+    VERIFY_DOCUMENTO: `${performer} verificó un documento`,
+    REJECT_DOCUMENTO: `${performer} rechazó un documento`
   };
 
-  return descriptions[activity.action] || activity.action.replace(/_/g, ' ');
+  // Si hay una descripción predefinida, usarla
+  if (descriptions[activity.action]) {
+    return descriptions[activity.action];
+  }
+
+  // Si no hay descripción predefinida, formatear la acción
+  return activity.action
+    .split('_')
+    .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ');
 };
 
 export const EnhancedActivityList = ({ activities, onActivityClick, className = '', loading, onLoadMore, hasMore }: EnhancedActivityListProps) => {

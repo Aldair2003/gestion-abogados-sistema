@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import debounce from 'lodash/debounce';
 
 interface FiltersProps {
   filters: {
@@ -17,7 +18,40 @@ interface FiltersProps {
   onFilterChange: (filters: any) => void;
 }
 
-export const UsersFilters = ({ filters, onFilterChange }: FiltersProps) => {
+export const UsersFilters = memo(({ filters, onFilterChange }: FiltersProps) => {
+  const [searchValue, setSearchValue] = useState(filters.search);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const debouncedSearchRef = useRef<any>(null);
+
+  // Crear una versión debounced de onFilterChange para la búsqueda con un tiempo mayor
+  useEffect(() => {
+    debouncedSearchRef.current = debounce((value: string) => {
+      onFilterChange({ search: value });
+    }, 800); // Aumentado a 800ms para dar más tiempo de escritura
+
+    return () => {
+      if (debouncedSearchRef.current) {
+        debouncedSearchRef.current.cancel();
+      }
+    };
+  }, [onFilterChange]);
+
+  // Actualizar el estado local solo cuando los filtros externos cambian explícitamente
+  useEffect(() => {
+    if (filters.search !== searchValue && document.activeElement !== searchInputRef.current) {
+      setSearchValue(filters.search);
+    }
+  }, [filters.search, searchValue]);
+
+  // Manejador del cambio en el campo de búsqueda optimizado
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    if (debouncedSearchRef.current) {
+      debouncedSearchRef.current(value);
+    }
+  }, []);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: -20 }}
@@ -30,10 +64,11 @@ export const UsersFilters = ({ filters, onFilterChange }: FiltersProps) => {
           <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 
                                         text-gray-400 dark:text-gray-500" />
           <input
+            ref={searchInputRef}
             type="text"
             placeholder="Buscar por nombre o email..."
-            value={filters.search}
-            onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
+            value={searchValue}
+            onChange={handleSearchChange}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg
                      bg-gray-50/50 dark:bg-dark-700/50
                      border border-gray-200/50 dark:border-dark-600/50
@@ -162,4 +197,4 @@ export const UsersFilters = ({ filters, onFilterChange }: FiltersProps) => {
       </div>
     </motion.div>
   );
-}; 
+}); 

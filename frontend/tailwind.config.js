@@ -16,6 +16,7 @@ module.exports = {
         'fade-out': 'fadeOut 200ms ease-in-out',
         'slide-in': 'slideIn 200ms ease-in-out',
         'slide-out': 'slideOut 200ms ease-in-out',
+        'modal-enter': 'modalEnter 300ms ease-out',
       },
       keyframes: {
         fadeIn: {
@@ -33,6 +34,16 @@ module.exports = {
         slideOut: {
           '0%': { transform: 'translateX(0)' },
           '100%': { transform: 'translateX(-100%)' },
+        },
+        modalEnter: {
+          '0%': { 
+            opacity: '0',
+            transform: 'scale(0.95) translateY(10px)'
+          },
+          '100%': { 
+            opacity: '1',
+            transform: 'scale(1) translateY(0)'
+          },
         },
       },
     },

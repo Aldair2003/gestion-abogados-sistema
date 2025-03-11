@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { MainLayout } from './layouts/MainLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -12,17 +12,18 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 import { UsersList } from './pages/admin/users/UsersList';
-import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import './styles/datepicker.css';
-import { CompleteProfile } from './pages/auth/CompleteProfile';
 import { ProfilePage } from './pages/profile/ProfilePage';
 import { SettingsPage } from './pages/settings/SettingsPage';
+import CantonesPage from './pages/cantones/CantonesPage';
+import PermissionsPage from './pages/admin/Permissions';
+import PersonasPage from './pages/personas/PersonasPage';
 
 // Configuración de inactividad
 const sessionConfig = {
-  inactivityTimeout: 60 * 60 * 1000,    // 1 hora (60 minutos)
-  warningTime: 20 * 60 * 1000,          // 20 minutos antes de la expiración
-  exemptRoutes: ['/login', '/register', '/forgot-password']
+  inactivityTimeout: 60 * 60 * 1000,    // 1 hora
+  warningTime: 20 * 60 * 1000,          // 20 minutos antes
+  exemptRoutes: ['/login', '/register', '/forgot-password', '/reset-password']
 };
 
 
@@ -41,30 +42,26 @@ export const App = () => {
           <ThemeProvider>
             <SessionManager config={sessionConfig}>
               <Routes>
-                {/* Rutas públicas */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="login" element={<LoginPage />} />
+                <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 
                 {/* Rutas protegidas */}
                 <Route element={<PrivateRoute />}>
                   <Route element={<MainLayout />}>
-                    <Route index element={<Navigate to="/dashboard" replace />} />
                     <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="complete-profile" element={<CompleteProfile />} />
-                    <Route path="profile" element={<ProfilePage />} />
                     <Route path="expedientes/*" element={<Dashboard />} />
                     <Route path="calendario" element={<Dashboard />} />
+                    <Route path="cantones" element={<CantonesPage />} />
+                    <Route path="cantones/:cantonId/personas" element={<PersonasPage />} />
                     
                     {/* Rutas de administración */}
-                    <Route 
-                      path="admin/usuarios" 
-                      element={
-                        <ProtectedRoute isAdmin>
-                          <UsersList />
-                        </ProtectedRoute>
-                      } 
-                    />
-                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/admin">
+                      <Route path="usuarios" element={<UsersList />} />
+                      <Route path="permisos" element={<PermissionsPage />} />
+                    </Route>
+                    <Route path="settings" element={<SettingsPage />} />
+                    <Route path="profile" element={<ProfilePage />} />
                   </Route>
                 </Route>
               </Routes>
