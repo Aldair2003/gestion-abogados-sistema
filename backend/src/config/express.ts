@@ -2,7 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import dotenv from 'dotenv';
 import { UPLOAD_BASE_PATH } from './storage';
+
+// Cargar variables de entorno
+dotenv.config();
 
 export const configureExpress = (app: express.Application): void => {
   // Seguridad
@@ -13,12 +17,8 @@ export const configureExpress = (app: express.Application): void => {
     })
   );
 
-  // Lista de orígenes permitidos
-  const allowedOrigins = [
-    'http://localhost:3001',
-    'http://localhost:5173',
-    'https://gestion-abogados-sistema.vercel.app'
-  ];
+  // Obtener orígenes permitidos desde la variable de entorno
+  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
 
   // Middleware CORS
   app.use((req, res, next) => {
@@ -32,7 +32,7 @@ export const configureExpress = (app: express.Application): void => {
       res.setHeader('Access-Control-Expose-Headers', 'Authorization');
     }
 
-    // Responder inmediatamente a preflight requests
+    // Manejar preflight requests (OPTIONS)
     if (req.method === 'OPTIONS') {
       res.sendStatus(200);
       return;
@@ -41,7 +41,7 @@ export const configureExpress = (app: express.Application): void => {
     next();
   });
 
-  // Middleware CORS de respaldo (en caso de que el anterior falle)
+  // Middleware CORS de respaldo
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -58,7 +58,7 @@ export const configureExpress = (app: express.Application): void => {
     })
   );
 
-  // Logging de peticiones HTTP
+  // Logging
   app.use(morgan('dev'));
 
   // Body parsing
