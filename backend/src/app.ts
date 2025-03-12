@@ -16,12 +16,8 @@ dotenv.config();
 export const app = express();
 
 // Middlewares básicos
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+app.use(cors()); // CORS ahora se configura en `express.ts`
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
