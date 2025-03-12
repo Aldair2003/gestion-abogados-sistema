@@ -14,11 +14,15 @@ export const configureExpress = (app: express.Application): void => {
   // CORS
   app.use(cors({
     origin: [
+      'http://localhost:3001',
       'http://localhost:5173',
       'https://gestion-abogados-sistema.vercel.app',
+      'https://gestion-abogados-sistema-git-master-alda04xs-projects.vercel.app',
       /\.vercel\.app$/
     ],
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
   }));
   
   // Logging
