@@ -9,11 +9,11 @@ export const MainLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0f1729]">
-      <div className="flex h-screen">
+      <div className="flex h-screen overflow-hidden">
         <Sidebar />
         
         <motion.div 
-          className="flex-1 flex flex-col"
+          className="flex-1 flex flex-col min-w-0"
           layout
           transition={{
             duration: 0.15,
@@ -22,7 +22,7 @@ export const MainLayout = () => {
         >
           <Header className="z-[9000] bg-white/95 dark:bg-[#1a2234]/80 
                            border-b border-gray-200 dark:border-dark-700/20 
-                           backdrop-blur-md shadow-sm" />
+                           backdrop-blur-md shadow-sm sticky top-0" />
           
           <motion.main 
             className={`flex-1 ${isSettingsPage ? '' : 'overflow-y-auto'}
@@ -34,7 +34,7 @@ export const MainLayout = () => {
             }}
           >
             <motion.div 
-              className={`h-full ${isSettingsPage ? 'p-0' : 'pl-6 pr-0 py-8'}`}
+              className={`h-full ${isSettingsPage ? 'p-0' : 'px-6 py-8'} max-w-full`}
               layout
               transition={{
                 duration: 0.15,

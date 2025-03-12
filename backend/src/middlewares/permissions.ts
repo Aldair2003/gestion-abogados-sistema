@@ -1,29 +1,37 @@
-import { NextFunction } from 'express';
-import { RequestWithUser } from '../types/express';
+import { AuthHandlerWithParams } from '../types/common';
 import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
 import { prisma } from '../lib/prisma';
+import { ParamsDictionary } from 'express-serve-static-core';
+
+interface CantonIdParam extends ParamsDictionary {
+  cantonId: string;
+}
+
+interface PersonaIdParam extends ParamsDictionary {
+  personaId: string;
+}
 
 // Middleware para verificar acceso a un cantón
-export const verifyCantonAccess = async (
-  req: RequestWithUser,
-  _res: any,
-  next: NextFunction
+export const verifyCantonAccess: AuthHandlerWithParams<CantonIdParam> = async (
+  req,
+  _res,
+  next
 ): Promise<void> => {
   try {
-    const userId = req.user?.id;
-    const cantonId = Number(req.params.cantonId || req.body.cantonId);
+    const userId = req.user.id;
+    const cantonId = Number(req.params.cantonId) || Number(req.body.cantonId);
 
-    if (!userId || !cantonId) {
+    if (!cantonId) {
       throw new CustomError({
         code: ApiErrorCode.VALIDATION_ERROR,
-        message: 'ID de usuario o cantón no proporcionado',
+        message: 'ID de cantón no proporcionado',
         status: 400
       });
     }
 
     // Los administradores tienen acceso completo
-    if (req.user?.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       next();
       return;
     }
@@ -54,25 +62,25 @@ export const verifyCantonAccess = async (
 };
 
 // Middleware para verificar acceso a una persona
-export const verifyPersonaAccess = async (
-  req: RequestWithUser,
-  _res: any,
-  next: NextFunction
+export const verifyPersonaAccess: AuthHandlerWithParams<PersonaIdParam> = async (
+  req,
+  _res,
+  next
 ): Promise<void> => {
   try {
-    const userId = req.user?.id;
-    const personaId = Number(req.params.personaId || req.body.personaId);
+    const userId = req.user.id;
+    const personaId = Number(req.params.personaId) || Number(req.body.personaId);
 
-    if (!userId || !personaId) {
+    if (!personaId) {
       throw new CustomError({
         code: ApiErrorCode.VALIDATION_ERROR,
-        message: 'ID de usuario o persona no proporcionado',
+        message: 'ID de persona no proporcionado',
         status: 400
       });
     }
 
     // Los administradores tienen acceso completo
-    if (req.user?.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       next();
       return;
     }
@@ -103,25 +111,25 @@ export const verifyPersonaAccess = async (
 };
 
 // Middleware para verificar permisos de edición en un cantón
-export const verifyCantonEditAccess = async (
-  req: RequestWithUser,
-  _res: any,
-  next: NextFunction
+export const verifyCantonEditAccess: AuthHandlerWithParams<CantonIdParam> = async (
+  req,
+  _res,
+  next
 ): Promise<void> => {
   try {
-    const userId = req.user?.id;
-    const cantonId = Number(req.params.cantonId || req.body.cantonId);
+    const userId = req.user.id;
+    const cantonId = Number(req.params.cantonId) || Number(req.body.cantonId);
 
-    if (!userId || !cantonId) {
+    if (!cantonId) {
       throw new CustomError({
         code: ApiErrorCode.VALIDATION_ERROR,
-        message: 'ID de usuario o cantón no proporcionado',
+        message: 'ID de cantón no proporcionado',
         status: 400
       });
     }
 
     // Los administradores tienen acceso completo
-    if (req.user?.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       next();
       return;
     }
@@ -150,25 +158,25 @@ export const verifyCantonEditAccess = async (
 };
 
 // Middleware para verificar permisos de edición en una persona
-export const verifyPersonaEditAccess = async (
-  req: RequestWithUser,
-  _res: any,
-  next: NextFunction
+export const verifyPersonaEditAccess: AuthHandlerWithParams<PersonaIdParam> = async (
+  req,
+  _res,
+  next
 ): Promise<void> => {
   try {
-    const userId = req.user?.id;
-    const personaId = Number(req.params.personaId || req.body.personaId);
+    const userId = req.user.id;
+    const personaId = Number(req.params.personaId) || Number(req.body.personaId);
 
-    if (!userId || !personaId) {
+    if (!personaId) {
       throw new CustomError({
         code: ApiErrorCode.VALIDATION_ERROR,
-        message: 'ID de usuario o persona no proporcionado',
+        message: 'ID de persona no proporcionado',
         status: 400
       });
     }
 
     // Los administradores tienen acceso completo
-    if (req.user?.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       next();
       return;
     }
@@ -182,7 +190,7 @@ export const verifyPersonaEditAccess = async (
       }
     });
 
-    if (!permission?.canEditOwn) {
+    if (!permission?.canEdit) {
       throw new CustomError({
         code: ApiErrorCode.FORBIDDEN,
         message: 'No tiene permisos de edición en esta persona',

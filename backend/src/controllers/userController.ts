@@ -12,8 +12,8 @@ import PDFDocument from 'pdfkit';
 import { logActivity } from '../services/logService';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../types/notification';
+import { AuthenticatedRequest } from '../types/common';
 import { 
-  RequestWithUser,
   RegisterRequest,
   EstadoProfesional,
   UserWithId,
@@ -250,10 +250,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         rol: user.rol,
         isFirstLogin: user.isFirstLogin,
         isProfileCompleted: user.isProfileCompleted,
-        lastActivity: new Date().toISOString()
+        lastActivity: new Date().toISOString(),
+        tokenVersion: user.tokenVersion
       },
       process.env.JWT_SECRET as string,
-      { expiresIn: '15m' }
+      { expiresIn: '12h' }
     );
 
     const refreshToken = jwt.sign(
@@ -326,7 +327,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const changePassword = async (
-  req: RequestWithUser & { body: ChangePasswordRequest }, 
+  req: AuthenticatedRequest & { body: ChangePasswordRequest }, 
   res: Response
 ): Promise<void> => {
   try {
@@ -525,7 +526,7 @@ export const resetPassword = async (
 
 // Editar usuario
 export const updateUser = async (
-  req: RequestWithUser, 
+  req: AuthenticatedRequest, 
   res: Response
 ): Promise<void> => {
   try {
@@ -596,7 +597,7 @@ export const updateUser = async (
 };
 
 // Desactivar usuario (soft delete)
-export const deactivateUser = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const deactivateUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = parseInt(req.params.id);
     const adminId = req.user!.id;
@@ -782,7 +783,7 @@ export const getUserById = async (userId: number) => {
   }
 };
 
-export const getCurrentUser = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const getCurrentUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     
@@ -1025,7 +1026,7 @@ export const exportToPDF = async (_: Request, res: Response) => {
   }
 };
 
-export const getUserProfile = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const getUserProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -1057,7 +1058,7 @@ export const getUserProfile = async (req: RequestWithUser, res: Response): Promi
 };
 
 export const updateUserProfile = async (
-  req: RequestWithUser & { file?: Express.Multer.File },
+  req: AuthenticatedRequest & { file?: Express.Multer.File },
   res: Response
 ): Promise<void> => {
   try {
@@ -1185,7 +1186,7 @@ export const updateUserProfile = async (
   }
 };
 
-export const completeProfile = async (req: RequestWithUser & { body: { 
+export const completeProfile = async (req: AuthenticatedRequest & { body: { 
   nombre: string;
   cedula: string;
   telefono: string;
@@ -1321,7 +1322,7 @@ export const completeProfile = async (req: RequestWithUser & { body: {
 };
 
 // Verificar estado del perfil
-export const getProfileStatus = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const getProfileStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const selectFields = {
@@ -1386,10 +1387,11 @@ export const validateUserCedula = async (req: Request, res: Response): Promise<v
     }
 
     // Validar formato de cédula
-    if (!validateCedula(cedula)) {
+    const validationResult = validateCedula(cedula);
+    if (!validationResult.isValid) {
       res.status(400).json({ 
         isValid: false,
-        message: 'Cédula inválida. Debe ser una cédula ecuatoriana válida.'
+        message: validationResult.message || 'Cédula inválida'
       });
       return;
     }
@@ -1444,7 +1446,7 @@ export const validateEmail = async (req: Request, res: Response): Promise<void> 
 };
 
 // Forzar cambio de contraseña
-export const forcePasswordChange = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const forcePasswordChange = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -1631,7 +1633,7 @@ export const createFirstAdmin = async (req: Request<{}, {}, RegisterRequest>, re
 };
 
 // Activar usuario
-export const activateUser = async (req: RequestWithUser, res: Response) => {
+export const activateUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -1682,7 +1684,7 @@ export const activateUser = async (req: RequestWithUser, res: Response) => {
 };
 
 // Eliminar usuario
-export const deleteUser = async (req: RequestWithUser, res: Response) => {
+export const deleteUser = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user) {
       res.status(401).json({ 
@@ -1788,7 +1790,7 @@ export const deleteUser = async (req: RequestWithUser, res: Response) => {
 };
 
 // Obtener logs de actividad
-export const getActivityLogs = async (req: RequestWithUser, res: Response) => {
+export const getActivityLogs = async (req: AuthenticatedRequest, res: Response) => {
   const { userId, action, startDate, endDate, page = 1, limit = 10 } = req.query;
   
   try {
@@ -1899,7 +1901,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-export const completeOnboarding = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const completeOnboarding = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -1942,7 +1944,7 @@ export const completeOnboarding = async (req: RequestWithUser, res: Response): P
   }
 };
 
-export const updateProfilePhoto = async (req: RequestWithUser & { file?: Express.Multer.File }, res: Response): Promise<void> => {
+export const updateProfilePhoto = async (req: AuthenticatedRequest & { file?: Express.Multer.File }, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -1985,7 +1987,7 @@ export const updateProfilePhoto = async (req: RequestWithUser & { file?: Express
   }
 };
 
-export const changeUserRole = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const changeUserRole = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { userId, newRole, reason } = req.body;
     const adminId = req.user!.id;
@@ -2089,7 +2091,7 @@ export const changeUserRole = async (req: RequestWithUser, res: Response): Promi
   }
 };
 
-export const bulkDeleteUsers = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const bulkDeleteUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -2132,7 +2134,7 @@ export const bulkDeleteUsers = async (req: RequestWithUser, res: Response): Prom
   }
 };
 
-export const bulkActivateUsers = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const bulkActivateUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -2178,7 +2180,7 @@ export const bulkActivateUsers = async (req: RequestWithUser, res: Response): Pr
   }
 };
 
-export const importUsers = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const importUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -2258,11 +2260,19 @@ export const getCollaborators = async (_req: Request, res: Response): Promise<vo
     });
     
     // Filtrar solo los usuarios que tienen perfil completo
-    const activeCollaborators = collaborators.filter(user => 
-      user.isProfileCompleted && 
-      user.nombre && 
-      user.cedula && 
-      user.telefono
+    const activeCollaborators = collaborators.filter((u: {
+      id: number;
+      nombre: string | null;
+      email: string;
+      cedula: string | null;
+      telefono: string | null;
+      rol: UserRole;
+      isProfileCompleted: boolean;
+    }) => 
+      u.isProfileCompleted && 
+      u.nombre && 
+      u.cedula && 
+      u.telefono
     );
 
     res.json({

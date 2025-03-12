@@ -1,23 +1,30 @@
 /**
  * Validador de cédula ecuatoriana
  * @param cedula Número de cédula a validar
- * @returns boolean
+ * @returns { isValid: boolean, message?: string } Resultado de la validación con mensaje opcional de error
  */
-export const validateCedula = (cedula: string): boolean => {
+export const validateCedula = (cedula: string): { isValid: boolean; message?: string } => {
   // Verificar longitud
   if (cedula.length !== 10) {
-    return false;
+    return { isValid: false, message: 'La cédula debe tener 10 dígitos' };
   }
 
   // Verificar que sean solo números
   if (!/^\d+$/.test(cedula)) {
-    return false;
+    return { isValid: false, message: 'La cédula debe contener solo números' };
   }
 
-  // Verificar código de provincia (01-24)
+  // Verificar código de provincia (01-24, 30)
   const provincia = parseInt(cedula.substring(0, 2));
-  if (provincia < 1 || provincia > 24) {
-    return false;
+  const provinciasValidas = new Set([
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 30
+  ]);
+
+  if (!provinciasValidas.has(provincia)) {
+    return { 
+      isValid: false, 
+      message: 'Código de provincia inválido. Debe ser entre 01-24 o 30 para ecuatorianos en el exterior' 
+    };
   }
 
   // Algoritmo de validación
@@ -34,7 +41,15 @@ export const validateCedula = (cedula: string): boolean => {
   }
 
   const digitoVerificador = (suma % 10 === 0) ? 0 : 10 - (suma % 10);
-  return verificador === digitoVerificador;
+  
+  if (verificador !== digitoVerificador) {
+    return { 
+      isValid: false, 
+      message: 'Dígito verificador inválido. La cédula no cumple con el algoritmo de validación' 
+    };
+  }
+
+  return { isValid: true };
 };
 
 /**

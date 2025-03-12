@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { authMiddleware } from '../middlewares/auth';
 import { getUserProfile, updateUserProfile } from '../controllers/profileController';
 import { RequestHandler } from 'express-serve-static-core';

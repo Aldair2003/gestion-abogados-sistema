@@ -6,7 +6,7 @@ import {
   getJuezById,
   deleteJuez
 } from '../controllers/cantonController';
-import { authenticateToken, isAdmin } from '../middlewares/auth';
+import { authenticateToken, isAdmin, withAuthenticatedHandler } from '../middlewares/auth';
 
 const router = Router();
 
@@ -14,10 +14,10 @@ const router = Router();
 router.use(authenticateToken);
 
 // Rutas de jueces
-router.get('/', getJueces);
-router.get('/:id', getJuezById);
-router.post('/', isAdmin, createJuez);
-router.put('/:id', isAdmin, updateJuez);
-router.delete('/:id', isAdmin, deleteJuez);
+router.get('/', withAuthenticatedHandler(getJueces));
+router.get('/:id', withAuthenticatedHandler(getJuezById));
+router.post('/', isAdmin, withAuthenticatedHandler(createJuez));
+router.put('/:id', isAdmin, withAuthenticatedHandler(updateJuez));
+router.delete('/:id', isAdmin, withAuthenticatedHandler(deleteJuez));
 
 export default router; 

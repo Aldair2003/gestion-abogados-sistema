@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { logActivity } from '../services/logService';
 import { ActivityCategory } from '../types/prisma';
@@ -9,14 +9,14 @@ import {
   CreateJuezDTO,
   UpdateJuezDTO
 } from '../types/canton';
-import { RequestWithUser } from '../types/user';
+import { AuthenticatedRequest } from '../types/common';
 import { ApiErrorCode } from '../types/apiError';
 import { CustomError } from '../utils/customError';
 import { CantonImageService } from '../services/cantonImageService';
 
 // Crear cantón
 export const createCanton = async (
-  req: RequestWithUser & { body: CreateCantonDTO; file?: Express.Multer.File },
+  req: AuthenticatedRequest & { body: CreateCantonDTO; file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -107,7 +107,7 @@ export const createCanton = async (
 
 // Actualizar cantón
 export const updateCanton = async (
-  req: RequestWithUser & { params: { id: string }; body: UpdateCantonDTO; file?: Express.Multer.File },
+  req: AuthenticatedRequest & { params: { id: string }; body: UpdateCantonDTO; file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -186,7 +186,7 @@ export const updateCanton = async (
 
 // Obtener cantones con paginación y filtros
 export const getCantones = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -272,7 +272,7 @@ export const getCantones = async (
 
 // Obtener cantón por ID
 export const getCantonById = async (
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest & { params: { id: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -310,7 +310,7 @@ export const getCantonById = async (
 
 // Crear juez
 export const createJuez = async (
-  req: RequestWithUser & { body: CreateJuezDTO },
+  req: AuthenticatedRequest & { body: CreateJuezDTO },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -393,7 +393,7 @@ export const createJuez = async (
 
 // Actualizar juez
 export const updateJuez = async (
-  req: RequestWithUser & { params: { id: string }; body: UpdateJuezDTO },
+  req: AuthenticatedRequest & { params: { id: string }; body: UpdateJuezDTO },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -485,7 +485,7 @@ export const updateJuez = async (
 
 // Obtener jueces con paginación y filtros
 export const getJueces = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -561,7 +561,7 @@ export const getJueces = async (
 
 // Obtener juez por ID
 export const getJuezById = async (
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest & { params: { id: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -588,6 +588,18 @@ export const getJuezById = async (
       });
     }
 
+    await logActivity(req.user!.id, 'GET_JUEZ', {
+      category: ActivityCategory.JUEZ,
+      targetId: Number(id),
+      details: {
+        description: 'Consulta de información de juez',
+        metadata: {
+          juezId: id,
+          juezNombre: juez.nombre
+        }
+      }
+    });
+
     res.json({
       status: 'success',
       data: juez
@@ -599,7 +611,7 @@ export const getJuezById = async (
 
 // Eliminar cantón
 export const deleteCanton = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -665,7 +677,7 @@ export const deleteCanton = async (
 
 // Eliminar juez
 export const deleteJuez = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -731,7 +743,7 @@ export const deleteJuez = async (
 
 // Obtener jueces de un cantón específico
 export const getJuecesByCanton = async (
-  req: Request<{ id: string }>,
+  req: AuthenticatedRequest & { params: { id: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -783,7 +795,7 @@ export const getJuecesByCanton = async (
 
 // Agregar un juez a un cantón
 export const createJuezInCanton = async (
-  req: RequestWithUser & { params: { id: string }; body: { nombre: string; cantones: number[] } },
+  req: AuthenticatedRequest & { params: { id: string }; body: { nombre: string; cantones: number[] } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -873,7 +885,7 @@ export const createJuezInCanton = async (
 
 // Eliminar un juez de un cantón
 export const deleteJuezFromCanton = async (
-  req: RequestWithUser & { params: { id: string; juezId: string } },
+  req: AuthenticatedRequest & { params: { id: string; juezId: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -949,7 +961,7 @@ export const deleteJuezFromCanton = async (
 
 // Obtener estadísticas de jueces por cantón
 export const getJuecesStats = async (
-  _req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -965,6 +977,17 @@ export const getJuecesStats = async (
       cantonId: stat.cantonId,
       totalJueces: stat._count.juezId
     }));
+
+    await logActivity(req.user!.id, 'GET_JUECES_STATS', {
+      category: ActivityCategory.JUEZ,
+      details: {
+        description: 'Consulta de estadísticas de jueces por cantón',
+        metadata: {
+          totalCantones: stats.length,
+          totalJueces: stats.reduce((acc, stat) => acc + stat._count.juezId, 0)
+        }
+      }
+    });
 
     res.json({
       status: 'success',

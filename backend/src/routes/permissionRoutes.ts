@@ -1,17 +1,18 @@
 import { Router } from 'express';
-import { authMiddleware } from '../middlewares/auth';
+import { withAuth } from '../types/common';
 import {
   getAllCantonPermissions,
+  getAssignedCantones,
+  assignMultipleCantonPermissions,
+  getPermissionsByCanton,
   assignCantonPermission,
   revokeCantonPermission,
   getPersonaPermissions,
   assignPersonaPermission,
   revokePersonaPermission,
-  getPermissionLogs,
-  getPermissionsByCanton,
-  assignMultipleCantonPermissions,
-  getAssignedCantones
+  getPermissionLogs
 } from '../controllers/permissionController';
+import { authenticateToken, isAdmin } from '../middlewares/auth';
 
 const router = Router();
 
@@ -305,24 +306,23 @@ const router = Router();
  *           description: No autorizado
  */
 
-// Rutas protegidas - requieren autenticación
-router.use(authMiddleware);
+// Rutas accesibles para todos los usuarios autenticados
+router.get('/canton/assigned', authenticateToken, withAuth(getAssignedCantones));
 
-// Permisos de cantones
-router.get('/canton', getAllCantonPermissions);
-router.get('/canton/assigned', getAssignedCantones);
-router.post('/canton/assign', assignMultipleCantonPermissions);
-router.get('/cantones/:cantonId', getPermissionsByCanton);
-router.post('/cantones/:cantonId/usuarios/:userId', assignCantonPermission);
-router.delete('/cantones/:cantonId/usuarios/:userId', revokeCantonPermission);
+// Rutas de administración de permisos - Solo administradores
+router.get('/canton', authenticateToken, withAuth(getAllCantonPermissions));
+router.post('/canton/assign', authenticateToken, isAdmin, withAuth(assignMultipleCantonPermissions));
+router.get('/cantones/:cantonId', authenticateToken, isAdmin, withAuth(getPermissionsByCanton));
+router.post('/cantones/:cantonId/usuarios/:userId', authenticateToken, isAdmin, withAuth(assignCantonPermission));
+router.delete('/cantones/:cantonId/usuarios/:userId', authenticateToken, isAdmin, withAuth(revokeCantonPermission));
 
-// Permisos de personas
-router.get('/personas', getPersonaPermissions);
-router.get('/personas/:personaId/usuarios/:userId', getPersonaPermissions);
-router.post('/personas/:personaId/usuarios/:userId', assignPersonaPermission);
-router.delete('/personas/:personaId/usuarios/:userId', revokePersonaPermission);
+// Permisos de personas - Solo administradores
+router.get('/personas', authenticateToken, isAdmin, withAuth(getPersonaPermissions));
+router.get('/personas/:personaId/usuarios/:userId', authenticateToken, isAdmin, withAuth(getPersonaPermissions));
+router.post('/personas/:personaId/usuarios/:userId', authenticateToken, isAdmin, withAuth(assignPersonaPermission));
+router.delete('/personas/:personaId/usuarios/:userId', authenticateToken, isAdmin, withAuth(revokePersonaPermission));
 
-// Historial de permisos
-router.get('/historial', getPermissionLogs);
+// Historial de permisos - Solo administradores
+router.get('/historial', authenticateToken, isAdmin, withAuth(getPermissionLogs));
 
 export default router; 

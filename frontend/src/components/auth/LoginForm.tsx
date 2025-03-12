@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { FiMail, FiLock, FiEye, FiEyeOff } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 import { IconWrapper } from '../common/IconWrapper';
+import { toast } from 'react-hot-toast';
 
 interface LoginFormProps {
   onAccountDisabled: () => void;
@@ -20,25 +21,62 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
   const onSubmit = async (data: LoginCredentials) => {
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/login', {
+      console.log('[Login] Intentando iniciar sesión con:', {
+        email: data.email,
+        passwordLength: data.password.length
+      });
+
+      const response = await api.post('/users/login', {
         email: data.email,
         password: data.password
       });
-      
-      localStorage.setItem('refreshToken', response.data.refreshToken);
+
+      console.log('[Login] Respuesta del servidor:', {
+        status: response.status,
+        hasData: !!response.data,
+        hasToken: !!response.data?.token,
+        hasUser: !!response.data?.user
+      });
+
+      if (!response.data?.token || !response.data?.user) {
+        throw new Error('Respuesta del servidor incompleta');
+      }
+
+      // Guardar refresh token si existe
+      if (response.data.refreshToken) {
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+      }
+
+      // Intentar login
       await login(response.data.token, response.data.user);
     } catch (error: any) {
-      const errorCode = error.response?.data?.error;
-      if (errorCode === 'ACCOUNT_DISABLED') {
-        onAccountDisabled();
-      }
+      console.error('[Login] Error:', {
+        name: error.name,
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+
+      const errorMessage = error.response?.data?.error?.message || 
+                         error.response?.data?.message || 
+                         error.message || 
+                         'Error al iniciar sesión';
+
+      toast.error(errorMessage, {
+        duration: 4000,
+        position: 'top-right'
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <form 
+      onSubmit={handleSubmit(onSubmit)} 
+      className="space-y-6"
+      noValidate
+    >
       {/* Campo Email */}
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -120,7 +158,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
 
       <motion.button
         type="submit"
-        onClick={handleSubmit(onSubmit)}
         disabled={isLoading}
         className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 
           text-white font-medium rounded-lg transition-colors
@@ -137,6 +174,6 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
           ¿Olvidaste tu contraseña?
         </a>
       </div>
-    </div>
+    </form>
   );
 }; 

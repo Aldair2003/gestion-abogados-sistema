@@ -1,5 +1,4 @@
-import { Response } from 'express';
-import { RequestWithUser } from '../middlewares/auth';
+import { AuthHandler } from '../types/common';
 import { prisma } from '../lib/prisma';
 
 // Definir el tipo de notificación basado en la tabla
@@ -13,7 +12,7 @@ type Notification = {
   createdAt: Date;
 };
 
-export const getNotifications = async (req: RequestWithUser, res: Response) => {
+export const getNotifications: AuthHandler = async (req, res) => {
   try {
     const notifications = await prisma.$queryRaw<Notification[]>`
       SELECT * FROM "Notification"
@@ -27,7 +26,7 @@ export const getNotifications = async (req: RequestWithUser, res: Response) => {
   }
 };
 
-export const markAsRead = async (req: RequestWithUser, res: Response) => {
+export const markAsRead: AuthHandler = async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.$executeRaw`
@@ -42,7 +41,7 @@ export const markAsRead = async (req: RequestWithUser, res: Response) => {
   }
 };
 
-export const deleteNotification = async (req: RequestWithUser, res: Response) => {
+export const deleteNotification: AuthHandler = async (req, res) => {
   try {
     const notificationId = Number(req.params.id);
     

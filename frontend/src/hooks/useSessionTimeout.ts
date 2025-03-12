@@ -11,7 +11,7 @@ const DEFAULT_CONFIG = {
   CHECK_INTERVAL: 1000,                // Verificar cada segundo
   EXEMPT_ROUTES: ['/login', '/register', '/forgot-password', '/reset-password'],
   MIN_TIME_BETWEEN_CALLS: 5000,        // Tiempo mínimo entre llamadas keep-alive (5 segundos)
-  TOKEN_REFRESH_THRESHOLD: 10 * 60 * 1000 // Renovar token 10 minutos antes de que expire
+  TOKEN_REFRESH_THRESHOLD: 30 * 60 * 1000 // Renovar token 30 minutos antes de que expire
 };
 
 export interface SessionConfig {
@@ -94,7 +94,7 @@ export const useSessionTimeout = (config?: Partial<SessionConfig>) => {
       setIsKeepAliveInProgress(true);
       setLastKeepAliveCall(now);
       
-      const response = await api.post('/auth/keep-alive');
+      const response = await api.post('/users/keep-alive');
       if (response.data?.token) {
         console.log('[Session] Token renovado exitosamente');
         localStorage.setItem('token', response.data.token);

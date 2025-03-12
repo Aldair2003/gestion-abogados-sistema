@@ -3,10 +3,26 @@ import jwt from 'jsonwebtoken';
 import { logActivity } from '../services/logService';
 import { ApiResponse, ApiErrorCode } from '../types/apiError';
 import { prisma } from '../lib/prisma';
-import { UserWithId, UserRole } from '../types/user';
+import { UserRole } from '@prisma/client';
 import { ActivityCategory } from '../types/prisma';
+import { AuthenticatedRequest } from '../types/common';
+import { UserWithId } from '../types/user';
 
-interface JwtPayload {
+// Clase ApiError para manejo de errores
+class ApiError extends Error {
+  constructor(
+    public statusCode: number,
+    public error: {
+      code: ApiErrorCode;
+      message: string;
+      details: string;
+    }
+  ) {
+    super(error.message);
+  }
+}
+
+interface ExtendedJwtPayload extends jwt.JwtPayload {
   id: number;
   email: string;
   rol: UserRole;
@@ -14,6 +30,8 @@ interface JwtPayload {
   isProfileCompleted: boolean;
   lastActivity?: string;
   tokenVersion?: number;
+  iat?: number;
+  exp?: number;
   sessionWarning?: {
     shown: boolean;
     timestamp: string;
@@ -21,189 +39,199 @@ interface JwtPayload {
   };
 }
 
-export interface RequestWithUser extends Request {
-  user?: UserWithId;
+// Extender la interfaz Request de Express
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+    }
+  }
 }
+
+const maxInactivityTime = 60 * 60 * 1000; // 1 hora
+const warningTime = 20 * 60 * 1000;      // 20 minutos
+const tokenRefreshThreshold = 30 * 60 * 1000; // 30 minutos
+const gracePeriod = 5 * 60 * 1000;       // 5 minutos de gracia
 
 // Middleware principal de autenticación
 export const authenticateToken = async (
-  req: Request & { user?: UserWithId },
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     console.log('[Auth] Iniciando verificación de token para ruta:', req.path);
-    const authHeader = req.headers['authorization'];
+    
+    const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
       console.log('[Auth] Token no proporcionado');
-      await logActivity(-1, 'UNAUTHORIZED_ACCESS', {
-        category: ActivityCategory.AUTH,
-        details: {
-          description: `Intento de acceso no autorizado a ${req.path}`,
-          metadata: {
-            ipAddress: req.ip,
-            userAgent: req.headers['user-agent'],
-            path: req.path,
-            method: req.method
-          }
-        }
-      });
-      res.status(401).json({ 
-        status: 'error',
+      throw new ApiError(401, {
+        code: ApiErrorCode.UNAUTHORIZED,
         message: 'Token no proporcionado',
-        error: {
-          code: ApiErrorCode.UNAUTHORIZED,
-          message: 'Token no proporcionado',
-          details: 'No se proporcionó un token de autenticación'
-        }
+        details: 'No se proporcionó un token de autenticación'
       });
-      return;
     }
 
-    console.log('[Auth] Decodificando token');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+    // Verificar el token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as ExtendedJwtPayload;
     console.log('[Auth] Token decodificado para usuario:', decoded.email);
 
-    // Verificar última actividad
-    const lastActivity = decoded.lastActivity ? new Date(decoded.lastActivity) : new Date();
-    const now = new Date();
-    const inactivityTime = now.getTime() - lastActivity.getTime();
-    console.log('[Auth] Tiempo de inactividad:', Math.round(inactivityTime / 1000), 'segundos');
-    const maxInactivityTime = 60 * 60 * 1000; // 1 hora
-    const warningTime = 20 * 60 * 1000; // 20 minutos
-    const gracePeriod = 5 * 60 * 1000; // 5 minutos
-    const tokenRefreshThreshold = 10 * 60 * 1000; // 10 minutos
-
-    // Si ya pasó el tiempo máximo más el período de gracia, cerrar sesión
-    if (inactivityTime > (maxInactivityTime + gracePeriod)) {
-      console.log('[Auth] Sesión expirada por inactividad');
-      await logActivity(decoded.id, 'SESSION_EXPIRED', {
-        category: ActivityCategory.AUTH,
-        details: {
-          description: `Sesión expirada por inactividad después de ${Math.round(inactivityTime / 1000 / 60)} minutos`,
-          metadata: {
-            reason: 'Inactividad',
-            inactiveTime: `${Math.round(inactivityTime / 1000 / 60)} minutos`
-          }
-        }
-      });
-      res.status(401).json({
-        status: 'error',
-        message: 'Sesión expirada por inactividad',
-        error: {
-          code: ApiErrorCode.SESSION_EXPIRED,
-          message: 'Sesión expirada por inactividad',
-          details: 'La sesión ha expirado por inactividad'
-        }
-      });
-      return;
-    }
-
-    // Obtener el usuario
-    console.log('[Auth] Buscando usuario en la base de datos');
+    // Obtener el usuario y verificar que exista
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id }
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        rol: true,
+        tokenVersion: true,
+        isFirstLogin: true,
+        isProfileCompleted: true
+      }
     });
 
     if (!user) {
-      console.log('[Auth] Usuario no encontrado en la base de datos');
-      throw new Error('Usuario no encontrado');
+      console.log('[Auth] Usuario no encontrado:', decoded.email);
+      throw new ApiError(401, {
+        code: ApiErrorCode.UNAUTHORIZED,
+        message: 'Usuario no encontrado',
+        details: 'El usuario asociado al token no existe'
+      });
     }
 
-    // Si el tiempo de inactividad está cerca del umbral de renovación o si se solicita mantener la sesión
-    if (inactivityTime > (maxInactivityTime - tokenRefreshThreshold) || req.headers['x-keep-session'] === 'true') {
-      console.log('[Auth] Renovando token por cercanía al umbral o solicitud explícita');
+    // Verificar la versión del token
+    if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+      console.log('[Auth] Versión de token inválida para usuario:', user.email, {
+        decodedVersion: decoded.tokenVersion,
+        userVersion: user.tokenVersion
+      });
+      
+      // Intentar renovar el token si la diferencia es de solo 1 versión
+      if (user.tokenVersion === (decoded.tokenVersion || 0) + 1) {
+        console.log('[Auth] Intentando renovar token por diferencia de versión');
+        const newToken = jwt.sign(
+          {
+            id: user.id,
+            email: user.email,
+            rol: user.rol,
+            tokenVersion: user.tokenVersion,
+            isFirstLogin: user.isFirstLogin,
+            isProfileCompleted: user.isProfileCompleted
+          },
+          process.env.JWT_SECRET!,
+          { expiresIn: '12h' }
+        );
+
+        res.set('Authorization', `Bearer ${newToken}`);
+        decoded.tokenVersion = user.tokenVersion;
+      } else {
+        throw new ApiError(401, {
+          code: ApiErrorCode.INVALID_TOKEN,
+          message: 'Token inválido',
+          details: 'El token ha sido revocado'
+        });
+      }
+    }
+
+    // Calcular tiempo de inactividad basado en el iat del token
+    const tokenIat = decoded.iat ? decoded.iat * 1000 : Date.now();
+    const inactivityTime = Date.now() - tokenIat;
+
+    console.log('[Auth] Tiempo de inactividad para usuario:', {
+      email: user.email,
+      inactivityTime: Math.floor(inactivityTime / 1000),
+      maxInactivityTime: Math.floor(maxInactivityTime / 1000),
+      warningTime: Math.floor(warningTime / 1000),
+      gracePeriod: Math.floor(gracePeriod / 1000)
+    });
+
+    // Verificar si el usuario está en período de gracia
+    if (inactivityTime > maxInactivityTime + gracePeriod) {
+      console.log('[Auth] Sesión expirada por inactividad para usuario:', user.email);
+      throw new ApiError(401, {
+        code: ApiErrorCode.SESSION_EXPIRED,
+        message: 'Sesión expirada',
+        details: 'La sesión ha expirado por inactividad'
+      });
+    }
+
+    // Renovar token si es necesario
+    const tokenAge = Date.now() - tokenIat;
+    if (tokenAge > (12 * 60 * 60 * 1000 - tokenRefreshThreshold)) {
+      console.log('[Auth] Renovando token para usuario:', user.email);
       const newToken = jwt.sign(
         {
-          id: decoded.id,
-          email: decoded.email,
-          rol: decoded.rol,
-          isFirstLogin: decoded.isFirstLogin,
-          isProfileCompleted: decoded.isProfileCompleted,
-          lastActivity: now.toISOString(),
-          tokenVersion: user.tokenVersion,
-          sessionWarning: null
+          id: user.id,
+          email: user.email,
+          rol: user.rol,
+          tokenVersion: user.tokenVersion
         },
         process.env.JWT_SECRET!,
-        { expiresIn: '1h' }
+        { expiresIn: '12h' }
       );
 
-      console.log('[Auth] Token renovado exitosamente');
       res.set('Authorization', `Bearer ${newToken}`);
-      res.set('X-Session-Extended', 'true');
-    }
-    // Si el tiempo de inactividad está cerca del máximo y no se ha mostrado la advertencia
-    else if (inactivityTime > (maxInactivityTime - warningTime) && !decoded.sessionWarning?.shown) {
-      console.log('[Auth] Enviando advertencia de sesión próxima a expirar');
-      const newToken = jwt.sign(
+      
+      // Registrar renovación de token
+      await logActivity(
+        user.id,
+        'TOKEN_RENEWED',
         {
-          ...decoded,
-          sessionWarning: {
-            shown: true,
-            timestamp: now.toISOString(),
-            acknowledged: false
+          category: ActivityCategory.AUTH,
+          details: {
+            description: 'Token renovado automáticamente',
+            metadata: {
+              tokenAge: Math.floor(tokenAge / 1000),
+              newExpiry: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
+            }
           }
-        },
-        process.env.JWT_SECRET!,
-        { expiresIn: '1h' }
+        }
       );
-
-      res.set('Authorization', `Bearer ${newToken}`);
-      res.set('X-Session-Warning', 'true');
-      res.set('X-Time-Remaining', String(Math.ceil((maxInactivityTime + gracePeriod - inactivityTime) / 1000)));
-      res.set('X-Warning-Type', 'session_expiring');
     }
 
-    // Si hay una advertencia activa, seguir enviando el tiempo restante
-    if (decoded.sessionWarning?.shown && !decoded.sessionWarning.acknowledged) {
-      console.log('[Auth] Advertencia activa, tiempo restante:', 
-        Math.ceil((maxInactivityTime + gracePeriod - inactivityTime) / 1000), 'segundos');
-      res.set('X-Session-Warning', 'true');
-      res.set('X-Time-Remaining', String(Math.ceil((maxInactivityTime + gracePeriod - inactivityTime) / 1000)));
-      res.set('X-Warning-Type', 'session_expiring');
-    }
-
-    console.log('[Auth] Autenticación exitosa para usuario:', user.email);
-    req.user = user;
+    // Agregar información del usuario a la request
+    req.user = user as UserWithId;
     next();
   } catch (error) {
-    console.error('[Auth] Error de autenticación:', error);
+    console.error('[Auth] Error en autenticación:', error);
     if (error instanceof jwt.TokenExpiredError) {
-      console.log('[Auth] Token expirado');
       res.status(401).json({
         status: 'error',
-        message: 'Token expirado',
         error: {
-          code: ApiErrorCode.SESSION_EXPIRED,
-          message: 'La sesión ha expirado',
+          code: ApiErrorCode.TOKEN_EXPIRED,
+          message: 'Token expirado',
           details: 'El token de autenticación ha expirado'
         }
       });
-    } else {
-      console.log('[Auth] Token inválido:', error instanceof Error ? error.message : 'Error desconocido');
-      res.status(401).json({
-        status: 'error',
-        message: 'Token inválido',
-        error: {
-          code: ApiErrorCode.INVALID_TOKEN,
-          message: 'Token inválido o expirado',
-          details: error instanceof Error ? error.message : 'Error desconocido'
-        }
-      });
+      return;
     }
+    
+    if (error instanceof ApiError) {
+      res.status(error.statusCode).json({
+        status: 'error',
+        error: error.error
+      });
+      return;
+    }
+
+    res.status(401).json({
+      status: 'error',
+      error: {
+        code: ApiErrorCode.INVALID_TOKEN,
+        message: 'Token inválido',
+        details: 'Token inválido o expirado'
+      }
+    });
+    return;
   }
 };
 
 // Middleware para verificar rol de administrador
-export const isAdmin = async (
-  req: RequestWithUser,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const isAdmin: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!req.user || req.user.rol !== UserRole.ADMIN) {
+    const user = req.user;
+    if (!user || user.rol !== UserRole.ADMIN) {
       const response: ApiResponse = {
         status: 'error',
         message: 'Acceso denegado',
@@ -214,14 +242,14 @@ export const isAdmin = async (
         }
       };
       
-      if (req.user) {
-        await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
+      if (user) {
+        await logActivity(user.id, 'UNAUTHORIZED_ACCESS', {
           category: ActivityCategory.AUTH,
           details: {
             description: `Intento de acceso a ruta protegida de administrador: ${req.path}`,
             metadata: {
               requiredRole: UserRole.ADMIN,
-              userRole: req.user.rol,
+              userRole: user.rol,
               path: req.path,
               ipAddress: req.ip,
               userAgent: req.headers['user-agent']
@@ -235,26 +263,17 @@ export const isAdmin = async (
     }
     next();
   } catch (error) {
-    const response: ApiResponse = {
-      status: 'error',
-      message: 'Error al verificar permisos',
-      error: {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: 'Error interno del servidor',
-        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-      }
-    };
-    res.status(500).json(response);
+    next(error);
   }
 };
 
 // Middleware para verificar rol de colaborador
 export const isColaborador = async (
-  req: RequestWithUser, 
+  req: AuthenticatedRequest, 
   res: Response, 
   next: NextFunction
 ): Promise<Response | void> => {
-  if (!req.user || req.user.rol !== UserRole.COLABORADOR) {
+  if (req.user.rol !== UserRole.COLABORADOR) {
     const response: ApiResponse = {
       status: 'error',
       message: 'Acceso denegado',
@@ -265,21 +284,19 @@ export const isColaborador = async (
       }
     };
 
-    if (req.user) {
-      await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
-        category: ActivityCategory.AUTH,
-        details: {
-          description: `Intento de acceso a ruta protegida de colaborador: ${req.path}`,
-          metadata: {
-            requiredRole: UserRole.COLABORADOR,
-            userRole: req.user.rol,
-            path: req.path,
-            ipAddress: req.ip,
-            userAgent: req.headers['user-agent']
-          }
+    await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
+      category: ActivityCategory.AUTH,
+      details: {
+        description: `Intento de acceso a ruta protegida de colaborador: ${req.path}`,
+        metadata: {
+          requiredRole: UserRole.COLABORADOR,
+          userRole: req.user.rol,
+          path: req.path,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent']
         }
-      });
-    }
+      }
+    });
 
     return res.status(403).json(response);
   }
@@ -288,26 +305,15 @@ export const isColaborador = async (
 
 // Helper para manejar errores async
 export const asyncHandler = (fn: RequestHandler): RequestHandler =>
-  (req, res, next): Promise<void> => {
+  (req: Request, res: Response, next: NextFunction): Promise<void> => {
     return Promise.resolve(fn(req, res, next))
-      .catch(error => {
-        console.error('Error en handler async:', error);
-        res.status(500).json({
-          status: 'error',
-          message: 'Error interno del servidor',
-          error: {
-            code: ApiErrorCode.INTERNAL_ERROR,
-            message: 'Error interno del servidor',
-            details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-          }
-        });
-      });
+      .catch(next);
   };
 
 // Helper para verificar permisos por roles
 export const withRole = (allowedRoles: UserRole[]) => {
   return async (
-    req: RequestWithUser, 
+    req: AuthenticatedRequest, 
     res: Response, 
     next: NextFunction
   ): Promise<Response | void> => {
@@ -322,21 +328,19 @@ export const withRole = (allowedRoles: UserRole[]) => {
         }
       };
 
-      if (req.user) {
-        await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
-          category: ActivityCategory.AUTH,
-          details: {
-            description: `Intento de acceso a ruta con roles restringidos: ${req.path}`,
-            metadata: {
-              requiredRoles: allowedRoles,
-              userRole: req.user.rol,
-              path: req.path,
-              ipAddress: req.ip,
-              userAgent: req.headers['user-agent']
-            }
+      await logActivity(req.user.id, 'UNAUTHORIZED_ACCESS', {
+        category: ActivityCategory.AUTH,
+        details: {
+          description: `Intento de acceso a ruta con roles restringidos: ${req.path}`,
+          metadata: {
+            requiredRoles: allowedRoles,
+            userRole: req.user.rol,
+            path: req.path,
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent']
           }
-        });
-      }
+        }
+      });
 
       return res.status(403).json(response);
     }
@@ -346,22 +350,22 @@ export const withRole = (allowedRoles: UserRole[]) => {
 
 // Helper para asegurar que el usuario está autenticado
 export const withUser = (
-  handler: (req: RequestWithUser, res: Response, next: NextFunction) => Promise<any>
+  handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<any>
 ): RequestHandler => {
-  return async (req: Request & { user?: UserWithId }, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ 
         status: 'error',
         message: 'No autorizado',
         error: {
           code: ApiErrorCode.UNAUTHORIZED,
-          message: 'No autorizado',
-          details: 'Usuario no autenticado'
+          message: 'Usuario no autenticado',
+          details: 'Se requiere autenticación para acceder a este recurso'
         }
       });
     }
     try {
-      return await handler(req as RequestWithUser, res, next);
+      return await handler(req as AuthenticatedRequest, res, next);
     } catch (error) {
       next(error);
     }
@@ -370,7 +374,7 @@ export const withUser = (
 
 // Middleware para requerir perfil completo
 export const requireProfileCompletion = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -396,7 +400,7 @@ export const requireProfileCompletion = async (
 export { authenticateToken as authMiddleware };
 
 export const isAuthenticated = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -417,7 +421,7 @@ export const isAuthenticated = async (
       return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as ExtendedJwtPayload;
 
     // Obtener el usuario de la base de datos para acceder a tokenVersion
     const user = await prisma.user.findUnique({
@@ -462,4 +466,46 @@ export const isAuthenticated = async (
       }
     });
   }
+};
+
+// Helper para asegurar autenticación
+export const withAuth = (handler: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'No autorizado',
+        error: {
+          code: ApiErrorCode.UNAUTHORIZED,
+          message: 'Usuario no autenticado',
+          details: 'Se requiere autenticación para esta acción'
+        }
+      });
+    }
+    return handler(req, res, next);
+  };
+};
+
+// Helper para manejar middlewares autenticados con tipos
+export const withAuthenticatedHandler = (handler: any): RequestHandler => {
+  return asyncHandler(async (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'No autorizado',
+        error: {
+          code: ApiErrorCode.UNAUTHORIZED,
+          message: 'Usuario no autenticado',
+          details: 'Se requiere autenticación para acceder a este recurso'
+        }
+      });
+    }
+    return handler(req, res, next);
+  });
+};
+
+export default {
+  authenticateToken,
+  isAdmin,
+  withAuth
 }; 

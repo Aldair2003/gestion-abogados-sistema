@@ -18,7 +18,7 @@ export interface PersonaPermissionAttributes {
   cantonId: number;
   canView: boolean;
   canCreate: boolean;
-  canEditOwn: boolean;
+  canEdit: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -72,13 +72,13 @@ export interface CreatePersonaPermissionDTO {
   cantonId: number;
   canView: boolean;
   canCreate: boolean;
-  canEditOwn: boolean;
+  canEdit: boolean;
 }
 
 export interface UpdatePersonaPermissionDTO {
   canView?: boolean;
   canCreate?: boolean;
-  canEditOwn?: boolean;
+  canEdit?: boolean;
 }
 
 // Tipos para respuestas paginadas

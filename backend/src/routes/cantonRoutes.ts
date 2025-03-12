@@ -11,24 +11,23 @@ import {
   getJuecesStats
 } from '../controllers/cantonController';
 import { uploadCantonImage } from '../middlewares/uploadMiddleware';
-import { authenticateToken, isAdmin } from '../middlewares/auth';
+import { authenticateToken, isAdmin, withAuthenticatedHandler } from '../middlewares/auth';
 
 const router = Router();
 
 // Rutas protegidas que requieren autenticación
-router.use(authenticateToken);
+router.get('/', authenticateToken, withAuthenticatedHandler(getCantones));
+router.get('/:id', authenticateToken, withAuthenticatedHandler(getCantonById));
 
-// Rutas de cantones
-router.get('/', getCantones);
-router.get('/stats/jueces', getJuecesStats);
-router.get('/:id', getCantonById);
-router.post('/', isAdmin, uploadCantonImage.single('imagen'), createCanton);
-router.put('/:id', isAdmin, uploadCantonImage.single('imagen'), updateCanton);
-router.delete('/:id', isAdmin, deleteCanton);
+// Rutas que requieren autenticación y rol de administrador
+router.post('/', authenticateToken, isAdmin, uploadCantonImage.single('imagen'), withAuthenticatedHandler(createCanton));
+router.put('/:id', authenticateToken, isAdmin, uploadCantonImage.single('imagen'), withAuthenticatedHandler(updateCanton));
+router.delete('/:id', authenticateToken, isAdmin, withAuthenticatedHandler(deleteCanton));
 
-// Rutas de jueces dentro de cantones
-router.get('/:id/jueces', getJuecesByCanton);
-router.post('/:id/jueces', isAdmin, createJuezInCanton);
-router.delete('/:id/jueces/:juezId', isAdmin, deleteJuezFromCanton);
+// Rutas de jueces
+router.get('/:id/jueces', authenticateToken, withAuthenticatedHandler(getJuecesByCanton));
+router.post('/:id/jueces', authenticateToken, isAdmin, withAuthenticatedHandler(createJuezInCanton));
+router.delete('/:id/jueces/:juezId', authenticateToken, isAdmin, withAuthenticatedHandler(deleteJuezFromCanton));
+router.get('/:id/jueces/stats', authenticateToken, withAuthenticatedHandler(getJuecesStats));
 
 export default router; 

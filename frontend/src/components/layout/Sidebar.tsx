@@ -227,12 +227,12 @@ export const Sidebar = () => {
   return (
     <div 
       className={`
-        relative bg-dark-800
+        relative bg-dark-800 z-[8000]
         ${isCollapsed ? 'w-20' : 'w-60'}
       `}
     >
       <motion.div
-        className="absolute inset-0 w-full h-full overflow-hidden"
+        className="absolute inset-0 w-full h-full overflow-hidden bg-dark-800 z-[8000]"
         initial={false}
         animate={isCollapsed ? "closed" : "open"}
         variants={sidebarAnimation}

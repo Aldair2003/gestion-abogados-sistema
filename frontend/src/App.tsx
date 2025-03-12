@@ -18,6 +18,7 @@ import { SettingsPage } from './pages/settings/SettingsPage';
 import CantonesPage from './pages/cantones/CantonesPage';
 import PermissionsPage from './pages/admin/Permissions';
 import PersonasPage from './pages/personas/PersonasPage';
+import ProcesoeImpugnacionPage from './pages/proceso/ProcesoeImpugnacionPage';
 
 // Configuración de inactividad
 const sessionConfig = {
@@ -25,14 +26,6 @@ const sessionConfig = {
   warningTime: 20 * 60 * 1000,          // 20 minutos antes
   exemptRoutes: ['/login', '/register', '/forgot-password', '/reset-password']
 };
-
-
-//const sessionConfig = {
-//  inactivityTimeout: 1 * 60 * 1000,    // 1 minuto
-//  warningTime: 30 * 1000,              // 30 segundos antes
-//  exemptRoutes: ['/login', '/register', '/forgot-password']
-//};
-
 
 export const App = () => {
   return (
@@ -54,6 +47,7 @@ export const App = () => {
                     <Route path="calendario" element={<Dashboard />} />
                     <Route path="cantones" element={<CantonesPage />} />
                     <Route path="cantones/:cantonId/personas" element={<PersonasPage />} />
+                    <Route path="proceso-impugnacion/:personaId" element={<ProcesoeImpugnacionPage />} />
                     
                     {/* Rutas de administración */}
                     <Route path="/admin">
