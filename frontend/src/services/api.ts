@@ -1,8 +1,11 @@
 import axios from 'axios';
 
+// Obtener la URL base de la API
+const API_URL = process.env.VITE_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app/api';
+
 // Crear instancia de axios con la configuración base
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+  baseURL: API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
