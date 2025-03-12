@@ -21,8 +21,16 @@ export const configureExpress = (app: express.Application): void => {
   );
 
   // Obtener orígenes permitidos desde la variable de entorno
-  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
-  console.log("✅ Allowed Origins:", allowedOrigins);
+  const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+  : [
+      'http://localhost:3001',
+      'http://localhost:5173',
+      'https://gestion-abogados-sistema.vercel.app',
+      'https://gestion-abogados-sistema-brbvmza88-alda04xs-projects.vercel.app'
+    ];
+
+console.log("✅ Allowed Origins:", allowedOrigins);
 
   // Middleware CORS
   app.use((req, res, next) => {
