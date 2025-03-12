@@ -12,7 +12,14 @@ export const configureExpress = (app: express.Application): void => {
   }));
   
   // CORS
-  app.use(cors());
+  app.use(cors({
+    origin: [
+      'http://localhost:5173',
+      'https://gestion-abogados-sistema.vercel.app',
+      /\.vercel\.app$/
+    ],
+    credentials: true
+  }));
   
   // Logging
   app.use(morgan('dev'));
