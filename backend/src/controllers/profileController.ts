@@ -6,6 +6,8 @@ import { logActivity } from '../services/logService';
 import { createNotification } from '../services/notificationService';
 import { NotificationType } from '../types/notification';
 import { ActivityCategory, Prisma } from '.prisma/client';
+import { ProfilePhotoService } from '../services/profilePhotoService';
+import { CustomError } from '../utils/customError';
 
 // Helper para serializar objetos con fechas y tipos complejos
 const serializeForLog = (obj: any): any => {
@@ -209,9 +211,10 @@ export const updatePersonalProfile = async (
       updateData.universidad = req.body.universidad?.trim() || null;
     }
 
-    // Si hay un archivo de foto, actualizar la URL
+    // Si hay un archivo de foto, actualizar la URL usando el servicio
     if (req.file) {
-      updateData.photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+      const photoUrl = await ProfilePhotoService.updatePhoto(req.file, userId);
+      updateData.photoUrl = photoUrl;
     }
 
     // Actualizar fecha de modificación
@@ -253,24 +256,19 @@ export const updatePersonalProfile = async (
       }
     });
 
-    res.json({
-      status: 'success',
-      message: 'Perfil actualizado correctamente',
-      data: updatedUser
-    });
+    res.json(updatedUser);
   } catch (error) {
     console.error('Error en updatePersonalProfile:', error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      res.status(400).json({
+    if (error instanceof CustomError) {
+      res.status(error.status).json({
         status: 'error',
-        message: 'Error al actualizar el perfil',
-        error: error.code
+        message: error.message,
+        code: error.code
       });
     } else {
       res.status(500).json({
         status: 'error',
-        message: 'Error interno del servidor',
-        error: 'INTERNAL_ERROR'
+        message: 'Error interno del servidor'
       });
     }
   }

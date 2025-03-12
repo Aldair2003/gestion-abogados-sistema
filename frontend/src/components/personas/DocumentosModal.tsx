@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { XMarkIcon, TrashIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import ArrowDownTrayIcon from '../icons/ArrowDownTrayIcon';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -43,13 +43,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
   const isCreador = persona.creadorId?.toString() === user?.id?.toString();
   const canUploadDocs = isAdmin || isCreador;
 
-  useEffect(() => {
-    if (isOpen) {
-      loadDocumentos();
-    }
-  }, [isOpen, persona.id]);
-
-  const loadDocumentos = async () => {
+  const loadDocumentos = useCallback(async () => {
     try {
       setLoading(true);
       const docs = await personaService.getDocumentos(persona.id.toString());
@@ -60,7 +54,13 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [persona.id]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadDocumentos();
+    }
+  }, [isOpen, loadDocumentos]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, tipo: string) => {
     const file = e.target.files?.[0];
@@ -76,9 +76,9 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       setUploading(true);
       await personaService.uploadDocuments(persona.id.toString(), [file], tipo);
       toast.success('Documento subido correctamente');
-      await loadDocumentos(); // Primero recargamos los documentos
+      await loadDocumentos(); // Recargamos los documentos
       if (onSuccess) {
-        onSuccess(); // Llamamos onSuccess sin setTimeout
+        onSuccess(); // Notificamos al componente padre para que actualice la lista de personas
       }
       // Limpiar el input file
       e.target.value = '';
@@ -158,7 +158,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       
       // Notificamos el cambio sin cerrar el modal principal
       if (onSuccess) {
-        onSuccess();
+        onSuccess(); // Notificamos al componente padre para que actualice la lista de personas
       }
     } catch (error: any) {
       console.error('Error al eliminar documento:', error);
@@ -245,9 +245,27 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
   };
 
   const getDocumentoStatus = (tipo: string) => {
-    const documento = documentos.find(doc => doc.tipo === tipo);
-    if (!documento) return { status: 'PENDIENTE', label: 'Pendiente', documento: null };
-    return { status: documento.estado || 'PENDIENTE', label: 'Subido', documento };
+    const documento = documentos.find(d => d.tipo === tipo && d.isActive);
+    const isObligatorio = ['CEDULA', 'CERTIFICADO_VOTACION', 'MATRICULA_VEHICULO'].includes(tipo);
+    
+    let label = 'No subido';
+    let colorClass = isDarkMode 
+      ? 'text-red-300 bg-red-900/50' 
+      : 'text-red-600 bg-red-50';
+
+    if (documento) {
+      label = 'Subido';
+      colorClass = isDarkMode 
+        ? 'text-green-300 bg-green-900/50' 
+        : 'text-green-600 bg-green-50';
+    }
+
+    return {
+      documento,
+      label,
+      colorClass,
+      isObligatorio
+    };
   };
 
   const getDocumentTypeLabel = (tipo: string) => {
@@ -262,15 +280,6 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
     return tipos[tipo] || tipo;
   };
 
-  const getDocumentStatusClass = (estado: string) => {
-    const estados: { [key: string]: string } = {
-      'PENDIENTE': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-      'VERIFICADO': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-      'RECHAZADO': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-    };
-    return estados[estado] || '';
-  };
-
   const renderDocumentActions = (tipo: string) => {
     const { documento } = getDocumentoStatus(tipo);
     
@@ -278,7 +287,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       return (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => handlePreviewDocument(documento)}
+            onClick={() => documento && handlePreviewDocument(documento)}
             className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
               isDarkMode
                 ? 'bg-gray-800 text-white hover:bg-gray-700'
@@ -311,17 +320,16 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                 {uploading ? 'Subiendo...' : 'Cambiar'}
               </label>
 
-              {isAdmin && (
+              {isAdmin && documento && (
                 <button
-                  onClick={() => handleDeleteDocument(documento)}
+                  onClick={() => documento && handleDeleteDocument(documento)}
                   className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isDarkMode
                       ? 'bg-red-900/50 text-red-300 hover:bg-red-900/70'
                       : 'bg-red-50 text-red-600 hover:bg-red-100'
                   }`}
                 >
-                  <TrashIcon className="h-4 w-4 mr-2" />
-                  Eliminar
+                  <TrashIcon className="h-4 w-4" />
                 </button>
               )}
             </>
@@ -415,7 +423,15 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
 
           {/* Content */}
           <div className="-mx-6 px-6 py-4">
-            {activeTab === 'info' ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className={`animate-spin rounded-full h-8 w-8 border-2 ${
+                  isDarkMode 
+                    ? 'border-primary-500 border-t-transparent' 
+                    : 'border-primary-600 border-t-transparent'
+                }`} />
+              </div>
+            ) : activeTab === 'info' ? (
               <div className="space-y-6">
                 {/* Información básica */}
                 <div>
@@ -526,22 +542,97 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                             <DocumentIcon className="h-4 w-4 mr-2 flex-shrink-0 text-gray-500 dark:text-gray-400" />
                             <div className="min-w-0">
                               <div className="text-sm font-medium truncate">
-                                {doc === 'CEDULA' && 'Cédula'}
-                                {doc === 'CERTIFICADO_VOTACION' && 'Certificado de Votación'}
-                                {doc === 'MATRICULA_VEHICULO' && 'Matrícula de Vehículo'}
+                                {getDocumentTypeLabel(doc)}
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                <span>{docStatus.label}</span>
+                              <div className="flex items-center gap-2 text-xs">
+                                <span className={`px-2 py-0.5 rounded-full ${docStatus.colorClass}`}>
+                                  {docStatus.label}
+                                </span>
                                 {docStatus.documento && (
-                                  <span className="truncate max-w-[150px]">
+                                  <span className="truncate max-w-[150px] text-gray-500 dark:text-gray-400">
                                     • {docStatus.documento.filename}
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                            {renderDocumentActions(doc)}
+                          <div className="flex items-center gap-2">
+                            {docStatus.documento ? (
+                              <>
+                                <button
+                                  onClick={() => docStatus.documento && handlePreviewDocument(docStatus.documento)}
+                                  className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                    isDarkMode
+                                      ? 'bg-gray-800 text-white hover:bg-gray-700'
+                                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                                  }`}
+                                >
+                                  <DocumentIcon className="h-4 w-4 mr-2" />
+                                  Ver
+                                </button>
+
+                                {canUploadDocs && (
+                                  <>
+                                    <input
+                                      type="file"
+                                      id={`file-${doc}`}
+                                      className="hidden"
+                                      accept=".pdf"
+                                      onChange={(e) => handleFileUpload(e, doc)}
+                                      disabled={uploading}
+                                    />
+                                    <label
+                                      htmlFor={`file-${doc}`}
+                                      className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+                                        isDarkMode
+                                          ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-900/70'
+                                          : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                      }`}
+                                    >
+                                      <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
+                                      {uploading ? 'Subiendo...' : 'Cambiar'}
+                                    </label>
+
+                                    {isAdmin && docStatus.documento && (
+                                      <button
+                                        onClick={() => docStatus.documento && handleDeleteDocument(docStatus.documento)}
+                                        className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                          isDarkMode
+                                            ? 'bg-red-900/50 text-red-300 hover:bg-red-900/70'
+                                            : 'bg-red-50 text-red-600 hover:bg-red-100'
+                                        }`}
+                                      >
+                                        <TrashIcon className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              canUploadDocs && (
+                                <>
+                                  <input
+                                    type="file"
+                                    id={`file-${doc}`}
+                                    className="hidden"
+                                    accept=".pdf"
+                                    onChange={(e) => handleFileUpload(e, doc)}
+                                    disabled={uploading}
+                                  />
+                                  <label
+                                    htmlFor={`file-${doc}`}
+                                    className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+                                      isDarkMode
+                                        ? 'bg-blue-900/50 text-blue-300 hover:bg-blue-900/70'
+                                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                    }`}
+                                  >
+                                    <ArrowUpTrayIcon className="h-4 w-4 mr-2" />
+                                    {uploading ? 'Subiendo...' : 'Subir'}
+                                  </label>
+                                </>
+                              )
+                            )}
                           </div>
                         </div>
                       );

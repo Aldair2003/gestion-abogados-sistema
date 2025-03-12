@@ -244,6 +244,13 @@ export const getCantones = async (
               juez: true,
             },
           },
+          _count: {
+            select: {
+              personas: {
+                where: { isActive: true }
+              }
+            }
+          }
         },
         skip,
         take: Number(limit),
@@ -255,10 +262,16 @@ export const getCantones = async (
     const totalPages = Math.ceil(total / Number(limit));
     const hasMore = Number(page) < totalPages;
 
+    // Mapear los cantones para incluir el total de personas
+    const cantonesConTotales = cantones.map(canton => ({
+      ...canton,
+      totalPersonas: canton._count.personas
+    }));
+
     res.json({
       status: 'success',
       data: {
-        cantones,
+        cantones: cantonesConTotales,
         total,
         page: Number(page),
         totalPages,

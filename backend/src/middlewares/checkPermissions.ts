@@ -212,11 +212,25 @@ export const checkCanEditPersona = async (
       });
     }
 
-    // Solo puede editar si es el creador
-    if (persona.createdBy !== userId) {
+    // Verificar si es el creador o tiene permisos específicos
+    const isCreator = persona.createdBy === userId;
+    
+    if (isCreator) {
+      return next();
+    }
+
+    // Si no es el creador, verificar si tiene permiso específico de edición
+    const personaPermission = await prisma.personaPermission.findFirst({
+      where: {
+        userId,
+        personaId: Number(personaId)
+      }
+    });
+
+    if (!personaPermission?.canEdit) {
       throw new CustomError({
         code: ApiErrorCode.FORBIDDEN,
-        message: 'Solo puedes editar las personas que tú creaste',
+        message: 'No tienes permiso para editar esta persona o sus documentos',
         status: 403
       });
     }

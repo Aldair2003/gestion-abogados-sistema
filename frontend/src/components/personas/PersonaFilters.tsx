@@ -28,16 +28,16 @@ export const PersonaFilters: React.FC<PersonaFiltersProps> = ({
           Estado Documental
         </label>
         <select
-          value={filters.hasDocuments?.toString() || ''}
+          value={filters.documentalFilter || 'all'}
           onChange={(e) => onFilterChange({
             ...filters,
-            hasDocuments: e.target.value === '' ? undefined : e.target.value === 'true'
+            documentalFilter: e.target.value as 'all' | 'complete' | 'incomplete'
           })}
           className="block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         >
-          <option value="">Todos</option>
-          <option value="true">Documentos Completos</option>
-          <option value="false">Documentos Pendientes</option>
+          <option value="all">Todos</option>
+          <option value="complete">Documentos Completos</option>
+          <option value="incomplete">Documentos Incompletos</option>
         </select>
       </div>
 

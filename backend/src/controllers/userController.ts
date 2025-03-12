@@ -30,6 +30,8 @@ import {
 } from '../types/user';
 import { ApiErrorCode } from '../types/apiError';
 import { JsonValue } from '../types/activity';
+import { ProfilePhotoService } from '../services/profilePhotoService';
+import { CustomError } from '../utils/customError';
 
 dotenv.config();
 
@@ -1128,9 +1130,10 @@ export const updateUserProfile = async (
     // Actualizar fecha de modificación
     updateData.updatedAt = new Date();
 
-    // Si hay un archivo de foto, actualizar la URL
+    // Si hay un archivo de foto, actualizar la URL usando el servicio
     if (req.file) {
-      updateData.photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+      const photoUrl = await ProfilePhotoService.updatePhoto(req.file, Number(userId));
+      updateData.photoUrl = photoUrl;
     }
 
     const updatedUser = await prisma.user.update({
@@ -1172,15 +1175,16 @@ export const updateUserProfile = async (
     res.json(updatedUser);
   } catch (error) {
     console.error('Error en updateUserProfile:', error);
-    if (error instanceof Error && 'code' in error) {
-      res.status(400).json({
-        message: 'Error al actualizar el perfil',
-        error: (error as { code: string }).code
+    if (error instanceof CustomError) {
+      res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code
       });
     } else {
       res.status(500).json({
-        message: 'Error interno del servidor',
-        error: 'INTERNAL_ERROR'
+        status: 'error',
+        message: 'Error interno del servidor'
       });
     }
   }
@@ -1944,7 +1948,10 @@ export const completeOnboarding = async (req: AuthenticatedRequest, res: Respons
   }
 };
 
-export const updateProfilePhoto = async (req: AuthenticatedRequest & { file?: Express.Multer.File }, res: Response): Promise<void> => {
+export const updateProfilePhoto = async (
+  req: AuthenticatedRequest & { file?: Express.Multer.File },
+  res: Response
+): Promise<void> => {
   try {
     if (!req.user) {
       res.status(401).json({ message: 'Usuario no autenticado' });
@@ -1956,26 +1963,36 @@ export const updateProfilePhoto = async (req: AuthenticatedRequest & { file?: Ex
       return;
     }
 
-    // Construir la URL de la imagen
-    const photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+    // Usar el servicio para actualizar la foto
+    const photoUrl = await ProfilePhotoService.updatePhoto(req.file, req.user.id);
 
     // Actualizar el usuario con la nueva URL de la foto
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
-      data: {
-        photoUrl,
-        updatedAt: new Date()
+      data: { photoUrl },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        cedula: true,
+        telefono: true,
+        domicilio: true,
+        estadoProfesional: true,
+        numeroMatricula: true,
+        universidad: true,
+        photoUrl: true,
+        rol: true,
+        isActive: true
       }
     });
 
     // Registrar la actividad
-    await logActivity(req.user.id, 'PROFILE_UPDATED', {
+    await logActivity(req.user.id, 'UPDATE_PROFILE_PHOTO', {
       category: ActivityCategory.PROFILE,
       details: {
         description: 'Foto de perfil actualizada',
         metadata: {
-          timestamp: new Date().toISOString(),
-          photoUrl
+          timestamp: new Date().toISOString()
         }
       }
     });
@@ -1983,7 +2000,18 @@ export const updateProfilePhoto = async (req: AuthenticatedRequest & { file?: Ex
     res.json(updatedUser);
   } catch (error) {
     console.error('Error al actualizar foto de perfil:', error);
-    res.status(500).json({ message: 'Error al actualizar foto de perfil' });
+    if (error instanceof CustomError) {
+      res.status(error.status).json({
+        status: 'error',
+        message: error.message,
+        code: error.code
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        message: 'Error interno del servidor'
+      });
+    }
   }
 };
 

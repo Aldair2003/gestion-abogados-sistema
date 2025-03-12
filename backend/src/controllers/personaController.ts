@@ -213,9 +213,12 @@ export const getPersonas = async (
       ...(search && {
         OR: [
           { cedula: { contains: search as string, mode: 'insensitive' } },
+          { nombres: { contains: search as string, mode: 'insensitive' } },
+          { apellidos: { contains: search as string, mode: 'insensitive' } },
           { telefono: { contains: search as string, mode: 'insensitive' } },
           { email: { contains: search as string, mode: 'insensitive' } },
           { domicilio: { contains: search as string, mode: 'insensitive' } },
+          { contactoRef: { contains: search as string, mode: 'insensitive' } },
           { matriculasVehiculo: { hasSome: [search as string] } }
         ]
       }),
@@ -671,24 +674,54 @@ export const getDocumentosByPersona = async (
   }
 };
 
-// Eliminar documento de una persona
+// Eliminar documento
 export const deleteDocumentoFromPersona = async (
   req: AuthenticatedRequest & { params: { id: string; documentoId: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { documentoId } = req.params;
+    const { id, documentoId } = req.params;
+    
+    console.log('Parámetros recibidos:', {
+      id,
+      documentoId,
+      userId: req.user?.id
+    });
 
-    await DocumentoService.deleteDocumento(parseInt(documentoId), req.user!.id);
+    // Convertir IDs a números y validar
+    const personaIdNum = parseInt(id, 10);
+    const documentoIdNum = parseInt(documentoId, 10);
 
+    if (isNaN(personaIdNum) || isNaN(documentoIdNum)) {
+      throw new CustomError({
+        code: ApiErrorCode.VALIDATION_ERROR,
+        message: 'IDs inválidos',
+        status: 400,
+        details: { personaId: id, documentoId }
+      });
+    }
+
+    console.log('IDs convertidos:', {
+      personaIdNum,
+      documentoIdNum
+    });
+
+    await DocumentoService.eliminarDocumento(
+      documentoIdNum,
+      personaIdNum,
+      req.user!.id
+    );
+
+    // Registrar la actividad
     await logActivity(req.user!.id, 'DELETE_DOCUMENTO', {
       category: ActivityCategory.DOCUMENTO,
-      targetId: parseInt(documentoId),
+      targetId: documentoIdNum,
       details: {
         description: 'Documento eliminado exitosamente',
         metadata: {
-          documentoId
+          documentoId: documentoIdNum,
+          personaId: personaIdNum
         }
       }
     });
@@ -698,6 +731,11 @@ export const deleteDocumentoFromPersona = async (
       message: 'Documento eliminado exitosamente'
     });
   } catch (error) {
+    console.error('Error en deleteDocumentoFromPersona:', {
+      error,
+      params: req.params,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     next(error);
   }
 };

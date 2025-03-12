@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
-import { personaService, Persona } from '../../services/personaService';
+import { personaService, Persona, FilterParams } from '../../services/personaService';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,6 +25,7 @@ import { CreateUserIcon } from '../icons/CustomIcons';
 import { CalendarIcon } from '../icons/CustomIcons';
 import { Dialog } from '@headlessui/react';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import debounce from 'lodash/debounce';
 
 interface PersonasListProps {
   cantonId: string;
@@ -57,68 +58,120 @@ const PersonasList: React.FC<PersonasListProps> = ({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [personaToEdit, setPersonaToEdit] = useState<Persona | null>(null);
   const [needsRefresh, setNeedsRefresh] = useState(false);
+  const [documentalFilter, setDocumentalFilter] = useState<'all' | 'complete' | 'incomplete'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [sortOption, setSortOption] = useState<'cedula' | 'apellidos' | 'documentosCompletos' | 'fecha_registro'>('fecha_registro');
+  const [isFiltering, setIsFiltering] = useState(false);
 
   const isAdmin = user?.rol === 'ADMIN';
 
-  const fetchPersonas = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('=== Inicio fetchPersonas en PersonasList ===');
-      console.log('cantonId recibido:', cantonId);
-      
-      if (!cantonId || isNaN(Number(cantonId))) {
-        console.error('ID de cantón inválido:', cantonId);
-        setError('ID de cantón inválido');
-        return;
-      }
+  const getDateRange = useMemo(() => (filter: string): { startDate?: string; endDate?: string } => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (filter) {
+      case 'today':
+        return {
+          startDate: today.toISOString(),
+          endDate: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+        };
+      case 'week':
+        const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return {
+          startDate: weekStart.toISOString(),
+          endDate: now.toISOString()
+        };
+      case 'month':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        return {
+          startDate: monthStart.toISOString(),
+          endDate: now.toISOString()
+        };
+      default:
+        return {};
+    }
+  }, []);
 
-      console.log('Llamando a getPersonasByCanton...');
-      const response = await personaService.getPersonasByCanton(cantonId);
-      console.log('Respuesta recibida:', response);
+  const applyFilters = useCallback(async (searchValue: string = localSearchTerm) => {
+    try {
+      setIsFiltering(true);
+      setError(null);
+
+      const dateRange = getDateRange(dateFilter);
+      const params: FilterParams = {
+        ...dateRange,
+        sortBy: sortOption === 'fecha_registro' ? 'createdAt' : sortOption,
+        sortOrder: 'desc',
+        search: searchValue.trim()
+      };
+
+      const response = await personaService.getPersonasByCanton(cantonId, params);
       
       if (response.status === 'success' && response.data?.personas) {
-        console.log('Personas obtenidas:', response.data.personas);
-        setPersonas(response.data.personas);
+        const filteredPersonas = response.data.personas.filter(persona => {
+          if (documentalFilter === 'complete') {
+            return persona.documentosCompletos === true;
+          } else if (documentalFilter === 'incomplete') {
+            return persona.documentosCompletos === false;
+          }
+          return true;
+        });
+
+        setPersonas(filteredPersonas);
+        setLoading(false);
       } else {
-        console.error('Respuesta sin datos de personas:', response);
         setError('No se pudieron cargar las personas');
       }
     } catch (error: any) {
-      console.error('Error al cargar personas:', error);
-      setError(error.message || 'Error al cargar la lista de personas');
-      toast.error(error.message || 'Error al cargar la lista de personas');
+      console.error('Error al aplicar filtros:', error);
+      setError(error.message || 'Error al filtrar la lista de personas');
+      toast.error(error.message || 'Error al filtrar la lista de personas');
     } finally {
-      setLoading(false);
-      console.log('=== Fin fetchPersonas en PersonasList ===');
+      setIsFiltering(false);
     }
-  }, [cantonId]);
+  }, [cantonId, documentalFilter, dateFilter, sortOption, getDateRange]);
 
-  useEffect(() => {
-    fetchPersonas();
-  }, [fetchPersonas]);
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((term: string) => {
+        applyFilters(term);
+      }, 200),
+    [applyFilters]
+  );
 
-  // Manejar cambios en la búsqueda
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setLocalSearchTerm(value);
     onSearchChange?.(value);
-  };
-
-  // Filtrar personas según el término de búsqueda
-  const filteredPersonas = personas.filter(persona => {
-    if (!localSearchTerm) return true;
     
-    const searchTermLower = localSearchTerm.toLowerCase();
-    return (
-      persona.cedula.toLowerCase().includes(searchTermLower) ||
-      persona.nombres.toLowerCase().includes(searchTermLower) ||
-      persona.apellidos.toLowerCase().includes(searchTermLower) ||
-      persona.telefono.toLowerCase().includes(searchTermLower) ||
-      (persona.email?.toLowerCase() || '').includes(searchTermLower) ||
-      (persona.domicilio?.toLowerCase() || '').includes(searchTermLower)
-    );
-  });
+    debouncedSearch(value);
+  }, [debouncedSearch, onSearchChange]);
+
+  const handleFilterChange = useCallback((type: string, value: any) => {
+    switch (type) {
+      case 'documental':
+        setDocumentalFilter(value);
+        break;
+      case 'date':
+        setDateFilter(value);
+        break;
+      case 'sort':
+        setSortOption(value);
+        break;
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      applyFilters();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [documentalFilter, dateFilter, sortOption, applyFilters]);
+
+  useEffect(() => {
+    setLoading(true);
+    applyFilters();
+  }, [cantonId]);
 
   const handleEditPersona = (persona: Persona) => {
     if (!isAdmin && persona.creadorId?.toString() !== user?.id?.toString()) {
@@ -145,7 +198,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
     try {
       await personaService.deletePersona(personaToDelete.id.toString());
       toast.success('Persona eliminada correctamente');
-      fetchPersonas();
+      applyFilters();
     } catch (error: any) {
       toast.error(error.message || 'Error al eliminar la persona');
     } finally {
@@ -162,7 +215,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
   const handleDocumentosModalClose = () => {
     setIsDocumentosModalOpen(false);
     if (needsRefresh) {
-        fetchPersonas();
+        applyFilters();
         setNeedsRefresh(false);
     }
     setTimeout(() => {
@@ -175,22 +228,23 @@ const PersonasList: React.FC<PersonasListProps> = ({
   };
 
   const handleModalSuccess = () => {
-    fetchPersonas();
+    applyFilters();
   };
 
   const handlePersonaClick = (persona: Persona) => {
     navigate(`/proceso-impugnacion/${persona.id}`);
   };
 
-  // Calcular estadísticas
   const totalPersonas = personas.length;
   const personasCompletas = personas.filter(p => p.documentosCompletos).length;
   const personasIncompletas = totalPersonas - personasCompletas;
 
+  // Memoize filtered personas
+  const filteredPersonas = useMemo(() => personas, [personas]);
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Encabezado y Estadísticas */}
         <div className={`rounded-2xl shadow-sm overflow-hidden ${
           isDarkMode 
             ? 'bg-[#1a2234] border border-gray-700/50' 
@@ -308,16 +362,23 @@ const PersonasList: React.FC<PersonasListProps> = ({
               </div>
               <input
                 type="text"
-                placeholder="Buscar por cédula, teléfono o email..."
-                className={`block w-full pl-9 pr-3 py-2 border rounded-lg text-sm transition-all duration-200 ${
+                placeholder="Buscar por nombre, cédula, teléfono, email o contacto de referencia..."
+                className={`block w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all duration-200 ${
                   isDarkMode 
-                    ? 'bg-[#0f1729] border-gray-700/50 text-gray-200 placeholder-gray-500 focus:border-primary-500 focus:ring-primary-500/20' 
-                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-primary-500/20'
+                    ? 'bg-[#0f1729] border-gray-700/50 text-gray-200 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20' 
+                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
                 }`}
                 value={localSearchTerm}
                 onChange={handleSearchChange}
+                autoComplete="off"
+                spellCheck="false"
               />
             </div>
+            {isFiltering && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <ArrowPathIcon className="w-4 h-4 animate-spin text-gray-400" />
+              </div>
+            )}
             <button
               className={`p-2 rounded-lg border transition-all duration-200 ${
                 isDarkMode
@@ -344,7 +405,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
   if (error) {
     return (
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Encabezado y Estadísticas */}
         <div className={`rounded-2xl shadow-sm overflow-hidden ${
           isDarkMode 
             ? 'bg-[#1a2234] border border-gray-700/50' 
@@ -462,16 +522,23 @@ const PersonasList: React.FC<PersonasListProps> = ({
               </div>
               <input
                 type="text"
-                placeholder="Buscar por cédula, teléfono o email..."
-                className={`block w-full pl-9 pr-3 py-2 border rounded-lg text-sm transition-all duration-200 ${
+                placeholder="Buscar por nombre, cédula, teléfono, email o contacto de referencia..."
+                className={`block w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all duration-200 ${
                   isDarkMode 
-                    ? 'bg-[#0f1729] border-gray-700/50 text-gray-200 placeholder-gray-500 focus:border-primary-500 focus:ring-primary-500/20' 
-                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-primary-500/20'
+                    ? 'bg-[#0f1729] border-gray-700/50 text-gray-200 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20' 
+                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
                 }`}
                 value={localSearchTerm}
                 onChange={handleSearchChange}
+                autoComplete="off"
+                spellCheck="false"
               />
             </div>
+            {isFiltering && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <ArrowPathIcon className="w-4 h-4 animate-spin text-gray-400" />
+              </div>
+            )}
             <button
               className={`p-2 rounded-lg border transition-all duration-200 ${
                 isDarkMode
@@ -498,7 +565,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
   return (
     <div className="max-w-7xl mx-auto -mt-8">
       <div className="space-y-2">
-        {/* Encabezado con título e información */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-4">
             <div className="relative">
@@ -539,7 +605,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
           </div>
         </div>
 
-        {/* Card de estadísticas y botón de registro */}
         <div className="flex items-center gap-3">
           <div className="grid grid-cols-3 gap-3 flex-1">
             <div className={`p-3 rounded-lg ${
@@ -609,7 +674,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
           </button>
         </div>
 
-        {/* Barra de búsqueda y filtros */}
         <div className={`space-y-4 ${
           isDarkMode ? 'text-gray-200' : 'text-gray-900'
         }`}>
@@ -618,23 +682,29 @@ const PersonasList: React.FC<PersonasListProps> = ({
               ? 'bg-[#1a2234] border border-gray-700/50' 
               : 'bg-white border border-gray-200'
           }`}>
-            {/* Barra de búsqueda principal */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-4">
               <div className="flex-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
-                  placeholder="Buscar por cédula, teléfono o email..."
-                  className={`block w-full pl-10 pr-4 py-2.5 border rounded-xl text-sm transition-all duration-200 ${
+                  placeholder="Buscar por nombre, cédula, teléfono, email o contacto de referencia..."
+                  className={`block w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all duration-200 ${
                     isDarkMode 
                       ? 'bg-[#0f1729] border-gray-700/50 text-gray-200 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20' 
                       : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
                   }`}
                   value={localSearchTerm}
                   onChange={handleSearchChange}
+                  autoComplete="off"
+                  spellCheck="false"
                 />
+                {isFiltering && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <ArrowPathIcon className="w-4 h-4 animate-spin text-gray-400" />
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
@@ -648,7 +718,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
               </button>
             </div>
 
-            {/* Panel de filtros */}
             <AnimatePresence>
               {showFilters && (
                 <motion.div
@@ -658,92 +727,78 @@ const PersonasList: React.FC<PersonasListProps> = ({
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700/50">
-                    {/* Filtro por estado documental */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-1.5 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Estado Documental
-                      </label>
-                      <div className="relative">
-                        <select
-                          className={`block w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm transition-all duration-200 appearance-none ${
-                            isDarkMode 
-                              ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
-                              : 'bg-gray-50 border-gray-300 text-gray-900'
-                          } focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20`}
-                        >
-                          <option value="">Todos</option>
-                          <option value="complete">Documentos Completos</option>
-                          <option value="incomplete">Documentos Pendientes</option>
-                        </select>
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <DocumentTextIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+                    <div className="relative">
+                      <select
+                        value={documentalFilter}
+                        onChange={(e) => handleFilterChange('documental', e.target.value)}
+                        disabled={isFiltering}
+                        className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all duration-200 ${
+                          isDarkMode 
+                            ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
+                            : 'bg-gray-50 border-gray-300 text-gray-900'
+                        } focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500`}
+                      >
+                        <option value="all">Estado Documental: Todos</option>
+                        <option value="complete">Documentos Completos</option>
+                        <option value="incomplete">Documentos Incompletos</option>
+                      </select>
                     </div>
 
-                    {/* Filtro por fecha de registro */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-1.5 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Fecha de Registro
-                      </label>
-                      <div className="relative">
-                        <select
-                          className={`block w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm transition-all duration-200 appearance-none ${
-                            isDarkMode 
-                              ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
-                              : 'bg-gray-50 border-gray-300 text-gray-900'
-                          } focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20`}
-                        >
-                          <option value="">Cualquier fecha</option>
-                          <option value="today">Hoy</option>
-                          <option value="week">Esta semana</option>
-                          <option value="month">Este mes</option>
-                          <option value="year">Este año</option>
-                        </select>
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <CalendarIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                      </div>
+                    <div className="relative">
+                      <select
+                        value={dateFilter}
+                        onChange={(e) => handleFilterChange('date', e.target.value)}
+                        disabled={isFiltering}
+                        className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all duration-200 ${
+                          isDarkMode 
+                            ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
+                            : 'bg-gray-50 border-gray-300 text-gray-900'
+                        } focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500`}
+                      >
+                        <option value="all">Fecha de Registro: Todos</option>
+                        <option value="today">Hoy</option>
+                        <option value="week">Última Semana</option>
+                        <option value="month">Último Mes</option>
+                      </select>
                     </div>
 
-                    {/* Ordenar por */}
-                    <div>
-                      <label className={`block text-sm font-medium mb-1.5 ${
-                        isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Ordenar por
-                      </label>
-                      <div className="relative">
-                        <select
-                          className={`block w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm transition-all duration-200 appearance-none ${
-                            isDarkMode 
-                              ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
-                              : 'bg-gray-50 border-gray-300 text-gray-900'
-                          } focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20`}
-                        >
-                          <option value="recent">Más recientes</option>
-                          <option value="cedula">Cédula</option>
-                          <option value="name">Nombre</option>
-                          <option value="docs">Estado documental</option>
-                        </select>
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <AdjustmentsVerticalIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-                        </div>
-                      </div>
+                    <div className="relative">
+                      <select
+                        value={sortOption}
+                        onChange={(e) => handleFilterChange('sort', e.target.value)}
+                        disabled={isFiltering}
+                        className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all duration-200 ${
+                          isDarkMode 
+                            ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
+                            : 'bg-gray-50 border-gray-300 text-gray-900'
+                        } focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500`}
+                      >
+                        <option value="fecha_registro">Ordenar por: Fecha de Registro</option>
+                        <option value="cedula">Ordenar por: Cédula</option>
+                        <option value="apellidos">Ordenar por: Apellidos</option>
+                        <option value="documentosCompletos">Ordenar por: Documentos</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-3 flex justify-end mt-2">
+                      <button
+                        onClick={() => {
+                          handleFilterChange('documental', 'all');
+                          handleFilterChange('date', 'all');
+                          handleFilterChange('sort', 'fecha_registro');
+                          setLocalSearchTerm('');
+                          onSearchChange?.('');
+                          applyFilters();
+                        }}
+                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                          isDarkMode
+                            ? 'bg-[#0f1729] text-gray-300 border border-gray-700/50 hover:bg-gray-800'
+                            : 'bg-gray-50 text-gray-700 border border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        Limpiar Filtros
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -752,147 +807,173 @@ const PersonasList: React.FC<PersonasListProps> = ({
           </div>
         </div>
 
-        {/* Lista de personas */}
-        {filteredPersonas.length > 0 ? (
-          <div className={`space-y-4 ${
+        {personas.length > 0 ? (
+          <div className={`space-y-3 ${
             isDarkMode 
               ? 'bg-transparent' 
               : 'bg-transparent'
           }`}>
-            <div className="grid grid-cols-1 gap-4">
-              {filteredPersonas.map((persona) => (
-                <div 
-                  key={persona.id}
-                  onClick={() => handlePersonaClick(persona)}
-                  className={`relative rounded-2xl overflow-hidden transition-all duration-200 cursor-pointer ${
-                    isDarkMode 
-                      ? 'bg-[#1a2234] border border-gray-700/50 hover:bg-[#1f2943]' 
-                      : 'bg-white border border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  {/* Indicador de estado */}
-                  <div className={`absolute left-0 top-0 w-1 h-full ${
-                    persona.documentosCompletos 
-                      ? 'bg-green-500' 
-                      : 'bg-yellow-500'
-                  }`} />
+            <div className="grid grid-cols-1 gap-3">
+              <AnimatePresence mode="wait">
+                {filteredPersonas.map((persona: Persona) => (
+                  <motion.div
+                    key={persona.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className={`relative rounded-xl overflow-hidden transition-all duration-200 group ${
+                      isDarkMode 
+                        ? 'bg-[#1a2234] border-2 border-gray-700/80 hover:bg-[#1f2943] shadow-lg shadow-black/10' 
+                        : 'bg-white border-2 border-gray-200 hover:bg-gray-50 shadow-lg shadow-gray-200/50'
+                    }`}
+                  >
+                    <div className={`absolute left-0 top-0 w-1.5 h-full transition-all duration-300 ${
+                      persona.documentosCompletos 
+                        ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' 
+                        : 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
+                    }`} />
 
-                  <div className="p-6">
-                    <div className="flex items-center justify-between pl-4">
-                      <div className="flex items-center space-x-4">
-                        <div className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden ${
-                          isDarkMode
-                            ? 'bg-[#0f1729] shadow-inner'
-                            : 'bg-gray-100'
-                        }`}>
-                          <img 
-                            src={iconoListaPerson}
-                            alt="Persona"
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div>
-                          <h3 className={`text-lg font-bold mb-1 ${
-                            isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                    <div className="p-4">
+                      <div className="flex items-center justify-between pl-3">
+                        <div 
+                          className="flex items-center space-x-3 flex-1 cursor-pointer"
+                          onClick={() => handlePersonaClick(persona)}
+                        >
+                          <div className={`relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden ${
+                            isDarkMode
+                              ? 'bg-[#0f1729] shadow-inner'
+                              : 'bg-gray-100'
                           }`}>
-                            {persona.nombres} {persona.apellidos}
-                          </h3>
-                          <div className="flex items-center space-x-3">
-                            <div className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
-                              isDarkMode 
-                                ? 'bg-[#0f1729] text-gray-300' 
-                                : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              <span className="mr-1">CI:</span>
-                              {persona.cedula}
+                            <img 
+                              src={iconoListaPerson}
+                              alt="Persona"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex flex-col">
+                            <div className="flex items-center space-x-3">
+                              <h3 className={`text-base font-bold ${
+                                isDarkMode ? 'text-gray-100' : 'text-gray-900'
+                              }`}>
+                                {persona.nombres} {persona.apellidos}
+                              </h3>
+                              <div className={`inline-flex items-center px-3 py-1 rounded-lg text-base font-bold transition-all duration-200 ${
+                                isDarkMode 
+                                  ? 'bg-gradient-to-r from-gray-700/50 to-gray-800/50 text-gray-100 border border-gray-600/30 shadow-inner shadow-black/10' 
+                                  : 'bg-gradient-to-r from-gray-100 to-gray-50 text-gray-900 border border-gray-200/80 shadow-sm'
+                              }`}>
+                                <span className={`mr-2 text-xs font-semibold ${
+                                  isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>CI:</span>
+                                {persona.cedula}
+                              </div>
                             </div>
-                            <div className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium ${
+                            <div className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium mt-1 transition-all duration-300 ${
                               persona.documentosCompletos
                                 ? isDarkMode 
-                                  ? 'bg-green-500/10 text-green-400' 
-                                  : 'bg-green-50 text-green-700'
+                                  ? 'bg-green-500/10 text-green-400 ring-1 ring-green-500/20' 
+                                  : 'bg-green-50 text-green-700 ring-1 ring-green-500/20'
                                 : isDarkMode
-                                  ? 'bg-yellow-500/10 text-yellow-400'
-                                  : 'bg-yellow-50 text-yellow-700'
+                                  ? 'bg-yellow-500/10 text-yellow-400 ring-1 ring-yellow-500/20'
+                                  : 'bg-yellow-50 text-yellow-700 ring-1 ring-yellow-500/20'
                             }`}>
                               {persona.documentosCompletos ? 'Documentos Completos' : 'Documentos Pendientes'}
                             </div>
                           </div>
                         </div>
+                        
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDocuments(persona);
+                            }}
+                            className={`p-2 rounded-lg transition-all duration-200 ${
+                              isDarkMode
+                                ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-primary-400 border border-gray-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-primary-600 border border-gray-200'
+                            }`}
+                            title="Ver documentos"
+                          >
+                            <DocumentTextIcon className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPersona(persona);
+                            }}
+                            className={`p-2 rounded-lg transition-all duration-200 ${
+                              isDarkMode
+                                ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-blue-400 border border-gray-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-blue-600 border border-gray-200'
+                            }`}
+                            title="Editar persona"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePersona(persona);
+                            }}
+                            className={`p-2 rounded-lg transition-all duration-200 ${
+                              isDarkMode
+                                ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-red-400 border border-gray-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-red-600 border border-gray-200'
+                            }`}
+                            title="Eliminar persona"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleViewDocuments(persona)}
-                          className={`p-2.5 rounded-xl transition-all duration-200 ${
-                            isDarkMode
-                              ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-primary-400'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-primary-600'
-                          }`}
-                          title="Ver documentos"
-                        >
-                          <DocumentTextIcon className="h-5 w-5" />
-                        </button>
 
-                        <button
-                          onClick={() => handleEditPersona(persona)}
-                          className={`p-2.5 rounded-xl transition-all duration-200 ${
-                            isDarkMode
-                              ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-blue-400'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-blue-600'
-                          }`}
-                          title="Editar persona"
-                        >
-                          <PencilIcon className="h-5 w-5" />
-                        </button>
-
-                        <button
-                          onClick={() => handleDeletePersona(persona)}
-                          className={`p-2.5 rounded-xl transition-all duration-200 ${
-                            isDarkMode
-                              ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-red-400'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-red-600'
-                          }`}
-                          title="Eliminar persona"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
+                      <div 
+                        className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 pl-16 cursor-pointer"
+                        onClick={() => handlePersonaClick(persona)}
+                      >
+                        <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${
+                          isDarkMode 
+                            ? 'bg-[#0f1729] text-gray-300 border-gray-700 group-hover:border-gray-600' 
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}>
+                          <PhoneIcon className={`h-4 w-4 mr-3 flex-shrink-0 ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`} />
+                          <span className="text-sm font-medium truncate">{persona.telefono}</span>
+                        </div>
+                        {persona.email && (
+                          <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${
+                            isDarkMode 
+                              ? 'bg-[#0f1729] text-gray-300 border-gray-700 group-hover:border-gray-600' 
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}>
+                            <EnvelopeIcon className={`h-4 w-4 mr-3 flex-shrink-0 ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`} />
+                            <span className="text-sm font-medium truncate">{persona.email}</span>
+                          </div>
+                        )}
+                        {persona.domicilio && (
+                          <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${
+                            isDarkMode 
+                              ? 'bg-[#0f1729] text-gray-300 border-gray-700 group-hover:border-gray-600' 
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}>
+                            <HomeIcon className={`h-4 w-4 mr-3 flex-shrink-0 ${
+                              isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`} />
+                            <span className="text-sm font-medium truncate">{persona.domicilio}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 pl-20">
-                      <div className={`flex items-center px-4 py-2.5 rounded-xl ${
-                        isDarkMode 
-                          ? 'bg-[#0f1729] text-gray-300' 
-                          : 'bg-gray-50 text-gray-700'
-                      }`}>
-                        <PhoneIcon className="h-4 w-4 mr-3 flex-shrink-0" />
-                        <span className="text-sm truncate">{persona.telefono}</span>
-                      </div>
-                      {persona.email && (
-                        <div className={`flex items-center px-4 py-2.5 rounded-xl ${
-                          isDarkMode 
-                            ? 'bg-[#0f1729] text-gray-300' 
-                            : 'bg-gray-50 text-gray-700'
-                        }`}>
-                          <EnvelopeIcon className="h-4 w-4 mr-3 flex-shrink-0" />
-                          <span className="text-sm truncate">{persona.email}</span>
-                        </div>
-                      )}
-                      {persona.domicilio && (
-                        <div className={`flex items-center px-4 py-2.5 rounded-xl ${
-                          isDarkMode 
-                            ? 'bg-[#0f1729] text-gray-300' 
-                            : 'bg-gray-50 text-gray-700'
-                        }`}>
-                          <HomeIcon className="h-4 w-4 mr-3 flex-shrink-0" />
-                          <span className="text-sm truncate">{persona.domicilio}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
         ) : (
@@ -917,7 +998,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
         )}
       </div>
 
-      {/* Modales */}
       <PersonaFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -934,7 +1014,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
         />
       )}
 
-      {/* Modal de confirmación de eliminación */}
       <ConfirmationModal
         isOpen={isDeleteModalOpen}
         onClose={() => {
@@ -966,7 +1045,6 @@ const PersonasList: React.FC<PersonasListProps> = ({
         preventClose={false}
       />
 
-      {/* Modal de edición */}
       <PersonaFormModal
         isOpen={isEditModalOpen}
         onClose={() => {
@@ -976,7 +1054,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
         }}
         onSuccess={() => {
           console.log('Edición exitosa');
-          fetchPersonas();
+          applyFilters();
           setIsEditModalOpen(false);
           setPersonaToEdit(null);
         }}
