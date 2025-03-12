@@ -9,10 +9,11 @@ import { sendWelcomeEmail } from './services/emailService';
 import routes from './routes';
 import { errorHandler } from './middlewares/errorHandler';
 import path from 'path';
+import { initializeSystem } from './middlewares/initializeSystem';
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 
 // Middlewares básicos
 app.use(cors({
@@ -80,6 +81,9 @@ const startServer = async () => {
     await prisma.$connect();
     console.log('Conexión a base de datos establecida correctamente.');
     
+    // Inicializar sistema (crear primer admin si no existe)
+    await initializeSystem();
+    
     app.listen(PORT, () => {
       console.log(`Servidor corriendo en puerto ${PORT}`);
       console.log(`Documentación API disponible en http://localhost:${PORT}/api-docs`);
@@ -98,5 +102,3 @@ process.on('SIGTERM', async () => {
 });
 
 startServer();
-
-export default app;

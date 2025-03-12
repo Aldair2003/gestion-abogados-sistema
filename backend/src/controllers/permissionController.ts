@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
-import { RequestWithUser } from '../types/express';
+import { 
+  AuthHandler,
+  AuthHandlerWithParams,
+  AuthenticatedRequest,
+  CantonParams,
+  CantonUserParams,
+  PersonaParams
+} from '../types/common';
 import { ActivityCategory } from '@prisma/client';
 import { logActivity } from '../services/logService';
 
@@ -137,15 +144,10 @@ export const assignPermissionsToUser = async (
   }
 };
 
-export const getUserPermissions = async (req: RequestWithUser, res: Response): Promise<void> => {
+export const getUserPermissions: AuthHandler = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user.id;
     
-    if (!userId) {
-      res.status(401).json({ message: 'No autorizado' });
-      return;
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -192,22 +194,46 @@ export const getUserPermissions = async (req: RequestWithUser, res: Response): P
 };
 
 // Obtener todos los permisos de cantones
-export const getAllCantonPermissions = async (_req: Request, res: Response): Promise<void> => {
+export const getAllCantonPermissions = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const permissions = await prisma.cantonPermission.findMany({
-      include: {
-        canton: true,
-        user: {
-          select: {
-            id: true,
-            nombre: true,
-            email: true,
-            rol: true,
-            photoUrl: true
+    let permissions;
+
+    // Si es admin, puede ver todos los permisos
+    if (req.user.rol === 'ADMIN') {
+      permissions = await prisma.cantonPermission.findMany({
+        include: {
+          canton: true,
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true,
+              rol: true,
+              photoUrl: true
+            }
           }
         }
-      }
-    });
+      });
+    } else {
+      // Si es colaborador, solo puede ver sus propios permisos
+      permissions = await prisma.cantonPermission.findMany({
+        where: {
+          userId: req.user.id
+        },
+        include: {
+          canton: true,
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true,
+              rol: true,
+              photoUrl: true
+            }
+          }
+        }
+      });
+    }
 
     res.json({
       status: 'success',
@@ -216,6 +242,7 @@ export const getAllCantonPermissions = async (_req: Request, res: Response): Pro
       }
     });
   } catch (error) {
+    console.error('Error al obtener permisos de cantones:', error);
     res.status(500).json({
       status: 'error',
       message: 'Error al obtener permisos de cantones',
@@ -224,12 +251,37 @@ export const getAllCantonPermissions = async (_req: Request, res: Response): Pro
   }
 };
 
+// Obtener permisos por cantón
+export const getPermissionsByCanton: AuthHandlerWithParams<CantonParams> = async (req, res, next) => {
+  try {
+    const { cantonId } = req.params;
+
+    const permissions = await prisma.cantonPermission.findMany({
+      where: { cantonId: Number(cantonId) },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true,
+            rol: true
+          }
+        },
+        canton: true
+      }
+    });
+
+    res.json({
+      status: 'success',
+      data: permissions
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Asignar permisos de cantón
-export const assignCantonPermission = async (
-  req: RequestWithUser & { params: { cantonId: string; userId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const assignCantonPermission: AuthHandlerWithParams<CantonUserParams> = async (req, res, next) => {
   try {
     const { cantonId, userId } = req.params;
     const { canView, canCreate, canEdit } = req.body;
@@ -318,11 +370,7 @@ export const assignCantonPermission = async (
 };
 
 // Revocar permisos de cantón
-export const revokeCantonPermission = async (
-  req: RequestWithUser & { params: { cantonId: string; userId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const revokeCantonPermission: AuthHandlerWithParams<CantonUserParams> = async (req, res, next) => {
   try {
     const { cantonId, userId } = req.params;
 
@@ -377,7 +425,7 @@ export const revokeCantonPermission = async (
 
 // Obtener permisos de personas
 export const getPersonaPermissions = async (
-  _req: RequestWithUser,
+  _req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -406,11 +454,7 @@ export const getPersonaPermissions = async (
 };
 
 // Asignar permisos de persona
-export const assignPersonaPermission = async (
-  req: RequestWithUser & { params: { personaId: string; userId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const assignPersonaPermission: AuthHandlerWithParams<PersonaParams> = async (req, res, next) => {
   try {
     const { personaId, userId } = req.params;
     const { canView, canCreate, canEdit } = req.body;
@@ -513,11 +557,7 @@ export const assignPersonaPermission = async (
 };
 
 // Revocar permisos de persona
-export const revokePersonaPermission = async (
-  req: RequestWithUser & { params: { personaId: string; userId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const revokePersonaPermission: AuthHandlerWithParams<PersonaParams> = async (req, res, next) => {
   try {
     const { personaId, userId } = req.params;
 
@@ -572,7 +612,7 @@ export const revokePersonaPermission = async (
 
 // Obtener logs de permisos
 export const getPermissionLogs = async (
-  _req: RequestWithUser,
+  _req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -601,151 +641,9 @@ export const getPermissionLogs = async (
   }
 };
 
-// Obtener permisos por cantón
-export const getPermissionsByCanton = async (
-  req: RequestWithUser & { params: { cantonId: string } },
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { cantonId } = req.params;
-
-    const permissions = await prisma.cantonPermission.findMany({
-      where: { cantonId: Number(cantonId) },
-      include: {
-        user: {
-          select: {
-            id: true,
-            nombre: true,
-            email: true,
-            rol: true
-          }
-        },
-        canton: true
-      }
-    });
-
-    res.json({
-      status: 'success',
-      data: permissions
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Asignar múltiples permisos de cantón
-export const assignMultipleCantonPermissions = async (
-  req: RequestWithUser,
-  res: Response
-): Promise<void> => {
-  try {
-    const { userId, cantonIds } = req.body;
-
-    // Validar que los datos necesarios estén presentes
-    if (!userId || !cantonIds || !Array.isArray(cantonIds) || cantonIds.length === 0) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Datos inválidos o incompletos'
-      });
-      return;
-    }
-
-    // Usar una transacción para garantizar la consistencia
-    const result = await prisma.$transaction(async (tx) => {
-      // Verificar que el usuario existe
-      const user = await tx.user.findUnique({
-        where: { id: Number(userId) }
-      });
-
-      if (!user) {
-        throw new Error('Usuario no encontrado');
-      }
-
-      // Verificar que todos los cantones existen
-      const cantones = await tx.canton.findMany({
-        where: {
-          id: {
-            in: cantonIds.map(id => Number(id))
-          }
-        }
-      });
-
-      if (cantones.length !== cantonIds.length) {
-        throw new Error('Uno o más cantones no fueron encontrados');
-      }
-
-      // Eliminar permisos que no están en la nueva lista
-      await tx.cantonPermission.deleteMany({
-        where: {
-          userId: Number(userId),
-          cantonId: {
-            notIn: cantonIds.map(id => Number(id))
-          }
-        }
-      });
-
-      // Crear o actualizar los permisos para cada cantón
-      const updatedPermissions = await Promise.all(
-        cantonIds.map(cantonId =>
-          tx.cantonPermission.upsert({
-            where: {
-              userId_cantonId: {
-                userId: Number(userId),
-                cantonId: Number(cantonId)
-              }
-            },
-            update: {
-              canView: true,
-              canEdit: false,
-              canCreate: false
-            },
-            create: {
-              userId: Number(userId),
-              cantonId: Number(cantonId),
-              canView: true,
-              canEdit: false,
-              canCreate: false
-            }
-          })
-        )
-      );
-
-      // Registrar actividad
-      await logActivity(req.user!.id, 'ASSIGN_MULTIPLE_CANTON_PERMISSIONS', {
-        category: ActivityCategory.PERMISSION_CHANGE,
-        targetId: Number(userId),
-        details: {
-          description: 'Actualización masiva de permisos de cantones',
-          metadata: {
-            userId,
-            permissions: serializeForLog(updatedPermissions)
-          }
-        }
-      });
-
-      return updatedPermissions;
-    });
-
-    res.status(200).json({
-      status: 'success',
-      data: {
-        permissions: result
-      }
-    });
-  } catch (error) {
-    console.error('Error al asignar permisos:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error al asignar los permisos',
-      error: (error as Error).message
-    });
-  }
-};
-
 // Obtener cantones asignados al usuario actual
 export const getAssignedCantones = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response
 ): Promise<void> => {
   try {
@@ -808,6 +706,115 @@ export const getAssignedCantones = async (
     res.status(500).json({
       status: 'error',
       message: 'Error al obtener los cantones asignados',
+      error: (error as Error).message
+    });
+  }
+};
+
+// Asignar múltiples permisos de cantón
+export const assignMultipleCantonPermissions = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const { userId, cantonIds, permissions } = req.body;
+
+    // Validar que los datos necesarios estén presentes
+    if (!userId || !cantonIds || !Array.isArray(cantonIds) || cantonIds.length === 0) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Datos inválidos o incompletos'
+      });
+      return;
+    }
+
+    // Usar una transacción para garantizar la consistencia
+    const result = await prisma.$transaction(async (tx) => {
+      // Verificar que el usuario existe
+      const user = await tx.user.findUnique({
+        where: { id: Number(userId) }
+      });
+
+      if (!user) {
+        throw new Error('Usuario no encontrado');
+      }
+
+      // Verificar que todos los cantones existen
+      const cantones = await tx.canton.findMany({
+        where: {
+          id: {
+            in: cantonIds.map(id => Number(id))
+          }
+        }
+      });
+
+      if (cantones.length !== cantonIds.length) {
+        throw new Error('Uno o más cantones no fueron encontrados');
+      }
+
+      // Eliminar permisos que no están en la nueva lista
+      await tx.cantonPermission.deleteMany({
+        where: {
+          userId: Number(userId),
+          cantonId: {
+            notIn: cantonIds.map(id => Number(id))
+          }
+        }
+      });
+
+      // Crear o actualizar los permisos para cada cantón
+      const updatedPermissions = await Promise.all(
+        cantonIds.map(cantonId =>
+          tx.cantonPermission.upsert({
+            where: {
+              userId_cantonId: {
+                userId: Number(userId),
+                cantonId: Number(cantonId)
+              }
+            },
+            update: {
+              canView: permissions?.view ?? true,
+              canEdit: permissions?.edit ?? false,
+              canCreate: permissions?.createExpedientes ?? false
+            },
+            create: {
+              userId: Number(userId),
+              cantonId: Number(cantonId),
+              canView: permissions?.view ?? true,
+              canEdit: permissions?.edit ?? false,
+              canCreate: permissions?.createExpedientes ?? false
+            }
+          })
+        )
+      );
+
+      // Registrar actividad
+      await logActivity(req.user!.id, 'ASSIGN_MULTIPLE_CANTON_PERMISSIONS', {
+        category: ActivityCategory.PERMISSION_CHANGE,
+        targetId: Number(userId),
+        details: {
+          description: 'Actualización masiva de permisos de cantones',
+          metadata: {
+            userId,
+            permissions: serializeForLog(updatedPermissions)
+          }
+        }
+      });
+
+      return updatedPermissions;
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        permissions: result
+      }
+    });
+  } catch (error) {
+    console.error('Error al asignar permisos:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error al asignar los permisos',
       error: (error as Error).message
     });
   }

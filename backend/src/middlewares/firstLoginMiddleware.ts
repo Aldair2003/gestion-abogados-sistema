@@ -1,10 +1,9 @@
-import { Response, NextFunction } from 'express';
-import { RequestWithUser } from './auth';
+import { AuthHandlerWithParams } from '../types/common';
 
-export const handleFirstLogin = async (
-  req: RequestWithUser,
-  res: Response,
-  next: NextFunction
+export const handleFirstLogin: AuthHandlerWithParams<{}> = async (
+  req,
+  res,
+  next
 ): Promise<void> => {
   try {
     // Si no es primer login, continuar normalmente

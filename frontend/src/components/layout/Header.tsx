@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
@@ -70,6 +70,35 @@ export const Header = ({ className = '' }: HeaderProps) => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    // Resetear el error de imagen cuando cambie el usuario o su foto
+    setImageError(false);
+  }, [user?.photoUrl]);
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
+  const renderAvatar = () => {
+    if (user?.photoUrl && !imageError) {
+      return (
+        <img 
+          src={getPhotoUrl(user.photoUrl)} 
+          alt={user?.nombre || 'Usuario'} 
+          className="h-full w-full object-cover"
+          onError={handleImageError}
+        />
+      );
+    }
+
+    return (
+      <div className="h-full w-full flex items-center justify-center text-primary-700 dark:text-primary-500 font-medium">
+        {(user?.nombre?.[0] || user?.email?.[0] || 'U').toUpperCase()}
+      </div>
+    );
+  };
 
   const handleAdminPanel = () => {
     console.log('Navegando al panel de administración...');
@@ -116,21 +145,7 @@ export const Header = ({ className = '' }: HeaderProps) => {
             <Menu.Button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-600 transition-colors">
               <div className="relative h-9 w-9 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
                            ring-2 ring-primary-500/20 dark:ring-primary-500/30">
-                {user?.photoUrl ? (
-                  <img 
-                    src={getPhotoUrl(user.photoUrl)} 
-                    alt={user?.nombre || 'Usuario'} 
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = `https://ui-avatars.com/api/?name=${user?.nombre || 'U'}&background=6366f1&color=fff`;
-                    }}
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center text-primary-700 dark:text-primary-500 font-medium">
-                    {(user?.nombre?.[0] || user?.email?.[0] || 'U').toUpperCase()}
-                  </div>
-                )}
+                {renderAvatar()}
               </div>
               <div className="text-left hidden sm:block">
                 <div className="flex flex-col">
@@ -155,7 +170,8 @@ export const Header = ({ className = '' }: HeaderProps) => {
             >
               <Menu.Items className="absolute right-0 mt-2 w-56 rounded-lg bg-white dark:bg-dark-700 
                                    shadow-lg border border-gray-200 dark:border-dark-600 
-                                   focus:outline-none divide-y divide-gray-100 dark:divide-dark-600">
+                                   focus:outline-none divide-y divide-gray-100 dark:divide-dark-600
+                                   z-[9999]">
                 <div className="p-2 space-y-1">
                   <Menu.Item>
                     {({ active }) => (

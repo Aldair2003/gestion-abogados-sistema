@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middlewares/auth';
 import { getNotifications, markAsRead, deleteNotification } from '../controllers/notificationController';
-import { RequestHandler } from 'express-serve-static-core';
+import { withAuth } from '../types/common';
 
 const router = Router();
 
 router.use(authMiddleware);
 
-router.get('/', getNotifications as unknown as RequestHandler);
-router.patch('/:id/read', markAsRead as unknown as RequestHandler);
-router.delete('/:id', deleteNotification as unknown as RequestHandler);
+router.get('/', withAuth(getNotifications));
+router.patch('/:id/read', withAuth(markAsRead));
+router.delete('/:id', withAuth(deleteNotification));
 
 export default router; 

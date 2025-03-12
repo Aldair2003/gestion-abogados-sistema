@@ -1,23 +1,28 @@
 import { Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
-import { RequestWithUser } from '../types/user';
-import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
+import { AuthenticatedRequest, CantonParams, PersonaParams } from '../types/common';
+import { CustomError } from '../utils/customError';
+import { ParamsDictionary } from 'express-serve-static-core';
 
 type PermissionAction = 'view' | 'create' | 'edit' | 'delete';
 
+interface IdParam extends ParamsDictionary {
+  id: string;
+}
+
 // Verificar si el usuario tiene acceso al cantón
 export const checkCantonAccess = async (
-  req: RequestWithUser,
-  _res: Response,
+  req: AuthenticatedRequest<CantonParams>,
+  _: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { id: cantonId } = req.params;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Si es admin, tiene acceso total
-    if (req.user!.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       return next();
     }
 
@@ -46,16 +51,16 @@ export const checkCantonAccess = async (
 
 // Verificar si el usuario puede ver una persona específica
 export const checkPersonaAccess = async (
-  req: RequestWithUser,
-  _res: Response,
+  req: AuthenticatedRequest<PersonaParams>,
+  _: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { id: personaId } = req.params;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Si es admin, tiene acceso total
-    if (req.user!.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       return next();
     }
 
@@ -123,16 +128,16 @@ export const checkPersonaAccess = async (
 
 // Verificar si el usuario puede crear personas en el cantón
 export const checkCanCreatePersona = async (
-  req: RequestWithUser,
-  _res: Response,
+  req: AuthenticatedRequest<CantonParams>,
+  _: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { cantonId } = req.body;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Si es admin, tiene acceso total
-    if (req.user!.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       return next();
     }
 
@@ -161,16 +166,16 @@ export const checkCanCreatePersona = async (
 
 // Verificar si el usuario puede editar la persona
 export const checkCanEditPersona = async (
-  req: RequestWithUser,
-  _res: Response,
+  req: AuthenticatedRequest<PersonaParams>,
+  _: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { id: personaId } = req.params;
-    const userId = req.user!.id;
+    const userId = req.user.id;
 
     // Si es admin, tiene acceso total
-    if (req.user!.rol === 'ADMIN') {
+    if (req.user.rol === 'ADMIN') {
       return next();
     }
 
@@ -224,22 +229,14 @@ export const checkCanEditPersona = async (
 
 // Middleware para verificar permisos de cantones
 export const checkCantonPermissions = (action: PermissionAction) => {
-  return async (req: RequestWithUser, _res: Response, next: NextFunction) => {
+  return async (req: AuthenticatedRequest<IdParam>, _res: Response, next: NextFunction) => {
     try {
-      const userId = req.user?.id;
+      const userId = req.user.id;
       const cantonId = req.params.id ? parseInt(req.params.id) : null;
 
       // Los administradores tienen todos los permisos
-      if (req.user?.rol === 'ADMIN') {
+      if (req.user.rol === 'ADMIN') {
         return next();
-      }
-
-      if (!userId) {
-        throw new CustomError({
-          code: ApiErrorCode.UNAUTHORIZED,
-          message: 'Usuario no autenticado',
-          status: 401
-        });
       }
 
       // Para crear nuevos cantones, verificar permiso general
@@ -248,7 +245,7 @@ export const checkCantonPermissions = (action: PermissionAction) => {
           where: {
             userId,
             permission: {
-              nombre: 'crear_cantones'
+              nombre: 'canton.create'
             }
           }
         });
@@ -264,35 +261,31 @@ export const checkCantonPermissions = (action: PermissionAction) => {
         return next();
       }
 
-      // Para acciones sobre cantones específicos
-      if (cantonId) {
-        const cantonPermission = await prisma.cantonPermission.findFirst({
-          where: {
-            userId,
-            cantonId
-          }
+      // Para otras acciones, verificar permiso específico del cantón
+      if (!cantonId) {
+        throw new CustomError({
+          code: ApiErrorCode.INVALID_INPUT,
+          message: 'ID de cantón no proporcionado',
+          status: 400
         });
+      }
 
-        if (!cantonPermission) {
-          throw new CustomError({
-            code: ApiErrorCode.FORBIDDEN,
-            message: 'No tienes permisos sobre este cantón',
-            status: 403
-          });
+      const permission = await prisma.cantonPermission.findFirst({
+        where: {
+          userId,
+          cantonId,
+          ...(action === 'view' && { canView: true }),
+          ...(action === 'edit' && { canEdit: true }),
+          ...(action === 'create' && { canCreate: true })
         }
+      });
 
-        const hasPermission = action === 'view' ? cantonPermission.canView :
-                            action === 'create' ? cantonPermission.canCreate :
-                            action === 'edit' ? cantonPermission.canEdit :
-                            action === 'delete' ? cantonPermission.canEdit : false;
-
-        if (!hasPermission) {
-          throw new CustomError({
-            code: ApiErrorCode.FORBIDDEN,
-            message: `No tienes permiso para ${action} este cantón`,
-            status: 403
-          });
-        }
+      if (!permission) {
+        throw new CustomError({
+          code: ApiErrorCode.FORBIDDEN,
+          message: `No tienes permiso para ${action} este cantón`,
+          status: 403
+        });
       }
 
       next();
@@ -304,7 +297,7 @@ export const checkCantonPermissions = (action: PermissionAction) => {
 
 // Middleware para verificar permisos de personas
 export const checkPersonaPermissions = (action: PermissionAction) => {
-  return async (req: RequestWithUser, _res: Response, next: NextFunction) => {
+  return async (req: AuthenticatedRequest, _res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.id;
       const personaId = req.params.id ? parseInt(req.params.id) : null;

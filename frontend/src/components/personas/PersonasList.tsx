@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { personaService, Persona } from '../../services/personaService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,6 +43,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
 }) => {
   const { isDarkMode } = useTheme();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +176,10 @@ const PersonasList: React.FC<PersonasListProps> = ({
 
   const handleModalSuccess = () => {
     fetchPersonas();
+  };
+
+  const handlePersonaClick = (persona: Persona) => {
+    navigate(`/proceso-impugnacion/${persona.id}`);
   };
 
   // Calcular estadísticas
@@ -757,11 +762,12 @@ const PersonasList: React.FC<PersonasListProps> = ({
             <div className="grid grid-cols-1 gap-4">
               {filteredPersonas.map((persona) => (
                 <div 
-                  key={persona.id} 
-                  className={`relative rounded-xl overflow-hidden shadow-sm ${
+                  key={persona.id}
+                  onClick={() => handlePersonaClick(persona)}
+                  className={`relative rounded-2xl overflow-hidden transition-all duration-200 cursor-pointer ${
                     isDarkMode 
-                      ? 'bg-[#1a2234] border border-gray-700/50' 
-                      : 'bg-white border border-gray-200'
+                      ? 'bg-[#1a2234] border border-gray-700/50 hover:bg-[#1f2943]' 
+                      : 'bg-white border border-gray-200 hover:bg-gray-50'
                   }`}
                 >
                   {/* Indicador de estado */}

@@ -1,16 +1,7 @@
-import { Request } from 'express';
 import { UserRole, EstadoProfesional } from '.prisma/client';
 
 // Re-exportar los enums como valores
 export { UserRole, EstadoProfesional };
-
-// Tipos base para operaciones de actualización
-export interface BaseUpdateInput {
-  [key: string]: any;
-}
-
-export type UserUpdateInput = BaseUpdateInput;
-export type UserUncheckedUpdateInput = BaseUpdateInput;
 
 // Interfaces base
 export interface UserWithId {
@@ -24,10 +15,13 @@ export interface UserWithId {
   lastActivity?: string;
 }
 
-// Extender Request para incluir el usuario
-export interface RequestWithUser extends Request {
-  user?: UserWithId;
+// Tipos base para operaciones de actualización
+export interface BaseUpdateInput {
+  [key: string]: any;
 }
+
+export type UserUpdateInput = BaseUpdateInput;
+export type UserUncheckedUpdateInput = BaseUpdateInput;
 
 // DTOs y tipos para las solicitudes
 export interface CreateUserDTO {

@@ -72,6 +72,9 @@ export interface User {
   createdAt: Date;
   updatedAt: Date;
   photoUrl?: string;
+  tokenVersion?: number;
+  refreshToken?: string;
+  isFirstLogin: boolean;
 }
 
 export interface UserDetails extends User {

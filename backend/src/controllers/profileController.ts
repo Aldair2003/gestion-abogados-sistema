@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { RequestWithUser } from '../types/user';
+import { AuthenticatedRequest } from '../types/common';
 import { prisma } from '../lib/prisma';
 import { validateCedula, validateTelefono } from '../utils/validators';
 import { logActivity } from '../services/logService';
@@ -24,7 +24,7 @@ const serializeForLog = (obj: any): any => {
   return obj;
 };
 
-export const getUserProfile = async (req: RequestWithUser, res: Response) => {
+export const getUserProfile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
@@ -59,7 +59,7 @@ export const getUserProfile = async (req: RequestWithUser, res: Response) => {
   }
 };
 
-export const updateUserProfile = async (req: RequestWithUser, res: Response) => {
+export const updateUserProfile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     if (!req.user?.id) {
       return res.status(401).json({ message: 'Usuario no autenticado' });
@@ -120,7 +120,7 @@ export const updateUserProfile = async (req: RequestWithUser, res: Response) => 
  * Actualizar el perfil personal del usuario autenticado
  */
 export const updatePersonalProfile = async (
-  req: RequestWithUser & { file?: Express.Multer.File },
+  req: AuthenticatedRequest & { file?: Express.Multer.File },
   res: Response
 ): Promise<void> => {
   try {
@@ -156,10 +156,11 @@ export const updatePersonalProfile = async (
 
     if (req.body.cedula) {
       // Validar formato de cédula
-      if (!validateCedula(req.body.cedula)) {
+      const validationResult = validateCedula(req.body.cedula);
+      if (!validationResult.isValid) {
         res.status(400).json({
           status: 'error',
-          message: 'La cédula ingresada no es válida',
+          message: validationResult.message || 'La cédula ingresada no es válida',
           error: 'INVALID_CEDULA'
         });
         return;

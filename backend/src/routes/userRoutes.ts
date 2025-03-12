@@ -1,8 +1,9 @@
 import { Router, RequestHandler } from 'express';
 import * as userController from '../controllers/userController';
-import { authMiddleware, isAdmin, asyncHandler, withUser } from '../middlewares/auth';
+import { authMiddleware, isAdmin, withAuthenticatedHandler } from '../middlewares/auth';
 import { loginLimiter, registerLimiter } from '../middlewares/rateLimit';
 import upload from '../middlewares/upload';
+import { asyncHandler } from '../types/common';
 
 const router = Router();
 
@@ -758,7 +759,7 @@ router.post(
 router.post(
   '/change-password',
   authMiddleware,
-  withUser(userController.changePassword)
+  withAuthenticatedHandler(userController.changePassword)
 );
 
 /**
@@ -818,19 +819,19 @@ router.post('/reset-password', asyncHandler(userController.resetPassword));
 router.put(
   '/:id',
   adminAuth,
-  asyncHandler(withUser(userController.updateUser))
+  asyncHandler(withAuthenticatedHandler(userController.updateUser))
 );
 
 router.patch(
   '/:id/activate',
   adminAuth,
-  asyncHandler(userController.activateUser)
+  asyncHandler(withAuthenticatedHandler(userController.activateUser))
 );
 
 router.patch(
   '/:id/deactivate',
   adminAuth,
-  asyncHandler(userController.deactivateUser)
+  asyncHandler(withAuthenticatedHandler(userController.deactivateUser))
 );
 
 // Rutas de gestión de usuarios
@@ -841,32 +842,32 @@ router.get(
 );
 
 // Nueva ruta para obtener el usuario actual
-router.get('/me', authMiddleware, asyncHandler(withUser(userController.getUserProfile)));
+router.get('/me', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.getUserProfile)));
 
-router.put('/me', authMiddleware, asyncHandler(withUser(userController.updateUserProfile)));
+router.put('/me', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.updateUserProfile)));
 
 router.get(
   '/profile/status', 
   authMiddleware, 
-  asyncHandler(withUser(userController.getProfileStatus))
+  asyncHandler(withAuthenticatedHandler(userController.getProfileStatus))
 );
 
 router.post(
   '/force-password-change',
   authMiddleware,
-  asyncHandler(withUser(userController.forcePasswordChange))
+  asyncHandler(withAuthenticatedHandler(userController.forcePasswordChange))
 );
 
 router.post(
   '/profile/complete',
   authMiddleware,
-  asyncHandler(withUser(userController.completeProfile))
+  asyncHandler(withAuthenticatedHandler(userController.completeProfile))
 );
 
 router.delete(
   '/:id',
   adminAuth,
-  asyncHandler(userController.deleteUser)
+  asyncHandler(withAuthenticatedHandler(userController.deleteUser))
 );
 
 router.get(
@@ -897,32 +898,57 @@ router.post('/first-admin', asyncHandler(userController.createFirstAdmin));
 router.get(
   '/activity-logs',
   adminAuth,
-  asyncHandler(userController.getActivityLogs as RequestHandler)
+  withAuthenticatedHandler(userController.getActivityLogs)
 );
 
 // Ruta para completar el perfil
-router.post('/complete-profile', authMiddleware, asyncHandler(userController.completeProfile));
+router.post(
+  '/complete-profile',
+  authMiddleware,
+  withAuthenticatedHandler(userController.completeProfile)
+);
 
 // Ruta para completar el onboarding
-router.post('/complete-onboarding', authMiddleware, asyncHandler(userController.completeOnboarding));
+router.post(
+  '/complete-onboarding',
+  authMiddleware,
+  withAuthenticatedHandler(userController.completeOnboarding)
+);
 
 // Rutas de perfil
-router.get('/profile', userController.getUserProfile);
-router.put(
+router.get(
   '/profile',
   authMiddleware,
-  upload.single('photo'),
-  asyncHandler(userController.updateUserProfile)
+  withAuthenticatedHandler(userController.getUserProfile)
 );
-router.post('/profile/photo', upload.single('photo'), userController.updateProfilePhoto);
-router.post('/profile/complete', userController.completeProfile);
-router.get('/profile/status', userController.getProfileStatus);
+
+router.get(
+  '/profile/status',
+  authMiddleware,
+  withAuthenticatedHandler(userController.getProfileStatus)
+);
+
+router.post(
+  '/profile/photo',
+  [authMiddleware, upload.single('photo')],
+  asyncHandler(withAuthenticatedHandler(userController.updateProfilePhoto))
+);
+
+router.post(
+  '/profile/complete',
+  authMiddleware,
+  asyncHandler(withAuthenticatedHandler(userController.completeProfile))
+);
 
 // Validaciones
-router.post('/validate/cedula', userController.validateUserCedula);
-router.post('/validate/email', userController.validateEmail);
+router.post('/validate/cedula', asyncHandler(userController.validateUserCedula));
+router.post('/validate/email', asyncHandler(userController.validateEmail));
 
 // Ruta para obtener colaboradores
-router.get('/collaborators', authMiddleware, userController.getCollaborators);
+router.get(
+  '/collaborators',
+  authMiddleware,
+  asyncHandler(withAuthenticatedHandler(userController.getCollaborators))
+);
 
 export default router; 

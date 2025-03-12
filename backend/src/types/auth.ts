@@ -1,11 +1,6 @@
-import { Prisma } from '@prisma/client';
-import { Request } from 'express';
-import { User } from '@prisma/client';
+import { User, Permission } from '@prisma/client';
 
-// Usar los tipos generados por Prisma
-type User = Prisma.UserGetPayload<{}>;
-type Permission = Prisma.PermissionGetPayload<{}>;
-
+// Extendemos el tipo User de Prisma
 export interface AuthUser extends User {
   permissions?: Permission[];
 }
@@ -46,8 +41,9 @@ export interface ResetPasswordRequest {
   newPassword: string;
 }
 
-export interface RequestWithUser extends Request {
-  user?: User;
-}
+// Esta interfaz se moverá a common.ts para mantener la consistencia
+// export interface RequestWithUser extends Request {
+//   user?: User;
+// }
 
 // ... otros tipos 

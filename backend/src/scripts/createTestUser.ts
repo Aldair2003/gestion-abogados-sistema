@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, UserRole } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -19,7 +19,7 @@ async function createAdminUser() {
         nombre: 'Aldakun',
         cedula: '0803723766',
         telefono: '0991767957',
-        rol: 'admin',
+        rol: UserRole.ADMIN,
         isActive: true
       }
     });

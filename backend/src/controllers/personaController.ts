@@ -9,7 +9,7 @@ import {
   UpdateDocumentoDTO,
   DocumentoFilters
 } from '../types/persona';
-import { RequestWithUser } from '../types/user';
+import { AuthenticatedRequest } from '../types/common';
 import { Prisma } from '.prisma/client';
 import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
@@ -17,7 +17,7 @@ import { DocumentoService } from '../services/documentoService';
 
 // Crear persona
 export const createPersona = async (
-  req: RequestWithUser & { body: CreatePersonaDTO },
+  req: AuthenticatedRequest & { body: CreatePersonaDTO },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -87,7 +87,7 @@ export const createPersona = async (
 
 // Actualizar persona
 export const updatePersona = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -174,7 +174,7 @@ export const updatePersona = async (
 
 // Obtener personas con paginación y filtros avanzados
 export const getPersonas = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -331,7 +331,7 @@ export const getPersonas = async (
 
 // Obtener persona por ID
 export const getPersonaById = async (
-  req: RequestWithUser & { params: { id: string } },
+  req: AuthenticatedRequest & { params: { id: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -366,7 +366,7 @@ export const getPersonaById = async (
 
 // Crear documento
 export const createDocumento = async (
-  req: RequestWithUser & { body: CreateDocumentoDTO },
+  req: AuthenticatedRequest & { body: CreateDocumentoDTO },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -424,7 +424,7 @@ export const createDocumento = async (
 
 // Actualizar documento
 export const updateDocumento = async (
-  req: RequestWithUser & { params: { id: string }; body: UpdateDocumentoDTO },
+  req: AuthenticatedRequest & { params: { id: string }; body: UpdateDocumentoDTO },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -543,7 +543,7 @@ export const getDocumentoById = async (
 
 // Eliminar persona
 export const deletePersona = async (
-  req: RequestWithUser,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -604,7 +604,7 @@ export const deletePersona = async (
 
 // Agregar documento a persona
 export const addDocumentoToPersona = async (
-  req: RequestWithUser & { params: { id: string }; file?: Express.Multer.File },
+  req: AuthenticatedRequest & { params: { id: string }; file?: Express.Multer.File },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -653,7 +653,7 @@ export const addDocumentoToPersona = async (
 
 // Obtener documentos de una persona
 export const getDocumentosByPersona = async (
-  req: RequestWithUser & { params: { id: string } },
+  req: AuthenticatedRequest & { params: { id: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -673,7 +673,7 @@ export const getDocumentosByPersona = async (
 
 // Eliminar documento de una persona
 export const deleteDocumentoFromPersona = async (
-  req: RequestWithUser & { params: { id: string; documentoId: string } },
+  req: AuthenticatedRequest & { params: { id: string; documentoId: string } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -704,7 +704,7 @@ export const deleteDocumentoFromPersona = async (
 
 // Obtener estadísticas de personas
 export const getPersonaStats = async (
-  _req: RequestWithUser,
+  _req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
