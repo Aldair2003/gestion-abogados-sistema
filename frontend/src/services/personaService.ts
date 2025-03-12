@@ -38,8 +38,8 @@ export interface FilterParams {
   isActive?: boolean;
   startDate?: string;
   endDate?: string;
-  hasDocuments?: boolean;
-  sortBy?: 'createdAt' | 'cedula' | 'telefono' | 'email';
+  documentalFilter?: 'all' | 'complete' | 'incomplete';
+  sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -400,21 +400,43 @@ class PersonaService {
     }
   }
 
-  async getPersonasByCanton(cantonId: string): Promise<PersonasResponse> {
+  async getPersonasByCanton(cantonId: string, params: FilterParams = {}): Promise<PersonasResponse> {
     try {
       console.log('=== Inicio getPersonasByCanton ===');
       console.log('Obteniendo personas del cantón:', cantonId);
+      console.log('Parámetros de filtro:', params);
       
       if (!cantonId || isNaN(Number(cantonId))) {
         throw new Error('ID de cantón inválido');
       }
 
-      const url = `/personas/canton/${cantonId}/personas`;
+      // Construir query params
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '' && key !== 'documentalFilter') {
+          queryParams.append(key, value.toString());
+        }
+      });
+
+      const url = `/personas/canton/${cantonId}/personas${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       console.log('URL construida:', url);
       console.log('URL completa:', api.defaults.baseURL + url);
       
       const response = await api.get(url);
       console.log('Respuesta del servidor:', response.data);
+
+      // Aplicar filtro documental en el cliente
+      if (response.data?.status === 'success' && response.data?.data?.personas && params.documentalFilter) {
+        const personas = response.data.data.personas;
+        response.data.data.personas = personas.filter((persona: Persona) => {
+          if (params.documentalFilter === 'complete') {
+            return persona.documentosCompletos === true;
+          } else if (params.documentalFilter === 'incomplete') {
+            return persona.documentosCompletos === false;
+          }
+          return true;
+        });
+      }
       
       return response.data;
     } catch (error: any) {

@@ -7,11 +7,11 @@ import { logActivity } from './logService';
 import { ActivityCategory } from '../types/prisma';
 
 // Configuración de imágenes
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads/cantones');
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads/profile-photos');
 
-export class CantonImageService {
+export class ProfilePhotoService {
   /**
    * Valida una imagen antes de procesarla
    */
@@ -46,38 +46,38 @@ export class CantonImageService {
   /**
    * Elimina físicamente una imagen del sistema de archivos
    */
-  private static async deleteImageFile(imageUrl: string | null): Promise<void> {
-    if (!imageUrl) return;
+  private static async deleteImageFile(photoUrl: string | null): Promise<void> {
+    if (!photoUrl) return;
 
     try {
-      const filePath = path.join(process.cwd(), imageUrl.replace(/^\/uploads\/cantones\//, 'uploads/cantones/'));
+      const filePath = path.join(process.cwd(), photoUrl.replace(/^\/uploads\/profile-photos\//, 'uploads/profile-photos/'));
       await fs.unlink(filePath);
     } catch (error) {
       // Si el archivo no existe, ignoramos el error
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('Error al eliminar imagen:', error);
+        console.error('Error al eliminar foto de perfil:', error);
       }
     }
   }
 
   /**
-   * Elimina la imagen anterior de un cantón
+   * Elimina la foto anterior de un usuario
    */
-  private static async deleteOldImage(cantonId: number): Promise<void> {
-    const canton = await prisma.canton.findUnique({
-      where: { id: cantonId },
-      select: { imagenUrl: true }
+  private static async deleteOldPhoto(userId: number): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { photoUrl: true }
     });
 
-    if (canton?.imagenUrl) {
-      await this.deleteImageFile(canton.imagenUrl);
+    if (user?.photoUrl) {
+      await this.deleteImageFile(user.photoUrl);
     }
   }
 
   /**
-   * Guarda una nueva imagen para un cantón
+   * Guarda una nueva foto de perfil
    */
-  static async saveImage(file: Express.Multer.File, cantonId: number, userId: number): Promise<string> {
+  static async savePhoto(file: Express.Multer.File, userId: number): Promise<string> {
     try {
       // Validar imagen
       await this.validateImage(file);
@@ -85,7 +85,7 @@ export class CantonImageService {
       // Generar nombre único
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       const ext = path.extname(file.originalname);
-      const fileName = `canton-${cantonId}-${uniqueSuffix}${ext}`;
+      const fileName = `photo-${userId}-${uniqueSuffix}${ext}`;
       const filePath = path.join(UPLOAD_DIR, fileName);
 
       // Asegurarse de que el directorio existe
@@ -95,14 +95,14 @@ export class CantonImageService {
       await fs.rename(file.path, filePath);
 
       // Construir URL relativa
-      const imageUrl = `/uploads/cantones/${fileName}`;
+      const photoUrl = `/uploads/profile-photos/${fileName}`;
 
       // Registrar actividad
-      await logActivity(userId, 'UPDATE_CANTON_IMAGE', {
-        category: ActivityCategory.CANTON,
-        targetId: cantonId,
+      await logActivity(userId, 'UPDATE_PROFILE_PHOTO', {
+        category: ActivityCategory.PROFILE,
+        targetId: userId,
         details: {
-          description: 'Imagen de cantón actualizada',
+          description: 'Foto de perfil actualizada',
           metadata: {
             fileName,
             fileType: file.mimetype,
@@ -111,7 +111,7 @@ export class CantonImageService {
         }
       });
 
-      return imageUrl;
+      return photoUrl;
     } catch (error) {
       // Limpiar archivo temporal si existe
       if (file.path) {
@@ -122,26 +122,26 @@ export class CantonImageService {
   }
 
   /**
-   * Actualiza la imagen de un cantón
+   * Actualiza la foto de perfil de un usuario
    */
-  static async updateImage(file: Express.Multer.File, cantonId: number, userId: number): Promise<string> {
+  static async updatePhoto(file: Express.Multer.File, userId: number): Promise<string> {
     try {
-      // Eliminar imagen anterior
-      await this.deleteOldImage(cantonId);
+      // Eliminar foto anterior
+      await this.deleteOldPhoto(userId);
       
-      // Guardar nueva imagen
-      const newImageUrl = await this.saveImage(file, cantonId, userId);
+      // Guardar nueva foto
+      const newPhotoUrl = await this.savePhoto(file, userId);
 
       // Actualizar URL en la base de datos
-      await prisma.canton.update({
-        where: { id: cantonId },
+      await prisma.user.update({
+        where: { id: userId },
         data: { 
-          imagenUrl: newImageUrl,
-          updatedBy: userId
+          photoUrl: newPhotoUrl,
+          updatedAt: new Date()
         }
       });
 
-      return newImageUrl;
+      return newPhotoUrl;
     } catch (error) {
       // Si algo falla, asegurarse de limpiar el archivo temporal
       if (file.path) {
@@ -152,41 +152,39 @@ export class CantonImageService {
   }
 
   /**
-   * Elimina la imagen de un cantón
+   * Elimina la foto de perfil de un usuario
    */
-  static async deleteImage(cantonId: number, userId: number): Promise<void> {
+  static async deletePhoto(userId: number): Promise<void> {
     try {
-      // Obtener y eliminar la imagen actual
-      await this.deleteOldImage(cantonId);
+      // Obtener y eliminar la foto actual
+      await this.deleteOldPhoto(userId);
 
-      // Actualizar el cantón para quitar la referencia a la imagen
-      await prisma.canton.update({
-        where: { id: cantonId },
+      // Actualizar el usuario para quitar la referencia a la foto
+      await prisma.user.update({
+        where: { id: userId },
         data: { 
-          imagenUrl: null,
-          updatedBy: userId
+          photoUrl: null,
+          updatedAt: new Date()
         }
       });
 
       // Registrar actividad
-      await logActivity(userId, 'DELETE_CANTON_IMAGE', {
-        category: ActivityCategory.CANTON,
-        targetId: cantonId,
+      await logActivity(userId, 'DELETE_PROFILE_PHOTO', {
+        category: ActivityCategory.PROFILE,
+        targetId: userId,
         details: {
-          description: 'Imagen de cantón eliminada',
+          description: 'Foto de perfil eliminada',
           metadata: {
-            timestamp: new Date().toISOString(),
-            cantonId,
-            action: 'DELETE'
+            timestamp: new Date().toISOString()
           }
         }
       });
     } catch (error) {
       throw new CustomError({
         code: ApiErrorCode.INTERNAL_ERROR,
-        message: 'Error al eliminar la imagen del cantón',
+        message: 'Error al eliminar la foto de perfil',
         status: 500,
-        details: { cantonId, error }
+        details: { userId, error }
       });
     }
   }

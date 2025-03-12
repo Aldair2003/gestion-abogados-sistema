@@ -195,6 +195,7 @@ model Persona {
   cantonId           Int         // Cantón al que pertenece la persona
   matriculasVehiculo String[]    // Array de matrículas
   documentos         Documento[]
+  documentosCompletos Boolean     @default(false)  // Indica si tiene todos los documentos obligatorios
   isActive           Boolean      @default(true)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt

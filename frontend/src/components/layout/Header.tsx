@@ -1,52 +1,197 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { NotificationsDropdown } from './NotificationsDropdown';
 import { getPhotoUrl } from '../../utils/urls';
+import api from '../../services/api';
+
+interface BreadcrumbItem {
+  label: string;
+  path: string;
+  isClickable: boolean;
+}
+
+const BreadcrumbItemComponent = ({ item, isLast }: { item: BreadcrumbItem; isLast: boolean }) => {
+  const location = useLocation();
+  const isActive = location.pathname === item.path;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -3, scale: 0.95, z: -10 }}
+      animate={{ opacity: 1, x: 0, scale: 1, z: 0 }}
+      transition={{ 
+        duration: 0.4,
+        ease: [0.2, 0.65, 0.3, 0.9],
+        scale: { duration: 0.35 },
+        opacity: { duration: 0.4 }
+      }}
+      className="flex items-center transform-gpu"
+      style={{ perspective: '1000px' }}
+    >
+      {item.isClickable ? (
+        <Link
+          to={item.path}
+          className={`
+            text-gray-600 hover:text-primary-600 
+            transition-all duration-200 ease-in-out
+            text-[12.5px] tracking-wide px-1.5
+            hover:scale-[1.02] transform-gpu
+            ${isActive ? 'text-primary-600' : ''}
+          `}
+        >
+          {item.label}
+        </Link>
+      ) : (
+        <span className={`
+          text-[12.5px] tracking-wide px-1.5
+          ${isLast ? 'text-primary-600 font-medium' : 'text-gray-900'}
+        `}>
+          {item.label}
+        </span>
+      )}
+    </motion.div>
+  );
+};
 
 const Breadcrumb = () => {
   const location = useLocation();
-  const paths = location.pathname.split('/').filter(Boolean);
-  
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadBreadcrumbs = async () => {
+      setLoading(true);
+      const paths = location.pathname.split('/').filter(Boolean);
+      const items: BreadcrumbItem[] = [];
+      
+      try {
+        let currentPath = '';
+        for (let i = 0; i < paths.length; i++) {
+          const path = paths[i];
+          currentPath += `/${path}`;
+
+          if (path === 'personas') {
+            const cantonId = paths[i-1];
+            try {
+              const response = await api.get(`/cantones/${cantonId}`);
+              if (response.data?.data) {
+                const canton = response.data.data;
+                items.push({
+                  label: canton.nombre,
+                  path: '/cantones',
+                  isClickable: true
+                });
+              }
+            } catch (error) {
+              console.error('Error cargando información del cantón:', error);
+            }
+          }
+          else if (path === 'proceso-impugnacion') {
+            const personaId = paths[i + 1];
+            if (personaId) {
+              try {
+                const response = await api.get(`/personas/${personaId}`);
+                if (response.data?.data) {
+                  const persona = response.data.data;
+                  items.push({
+                    label: persona.canton.nombre,
+                    path: '/cantones',
+                    isClickable: true
+                  });
+                  items.push({
+                    label: `${persona.nombres} ${persona.apellidos}`,
+                    path: `/cantones/${persona.cantonId}/personas`,
+                    isClickable: true
+                  });
+                  items.push({
+                    label: 'Proceso e Impugnación',
+                    path: currentPath + `/${personaId}`,
+                    isClickable: false
+                  });
+                }
+              } catch (error) {
+                console.error('Error cargando información de la persona:', error);
+              }
+            }
+          }
+        }
+        
+        setBreadcrumbs(items);
+      } catch (error) {
+        console.error('Error generando breadcrumbs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBreadcrumbs();
+  }, [location]);
+
+  if (loading) {
+    return <div className="h-2.5 w-16 bg-gray-200 animate-pulse rounded" />;
+  }
+
   return (
-    <div className="flex items-center space-x-2 text-sm">
-      {paths.map((path, index) => (
-        <Fragment key={path}>
-          {index > 0 && (
-            <span className="text-gray-400 dark:text-gray-500">/</span>
-          )}
-          <span 
-            className={`capitalize ${
-              index === paths.length - 1 
-                ? 'text-gray-900 dark:text-white font-medium'
-                : 'text-gray-500 dark:text-gray-400'
-            }`}
-          >
-            {path}
-          </span>
-        </Fragment>
-      ))}
-    </div>
+    <nav aria-label="Breadcrumb" className="min-w-[200px]">
+      <AnimatePresence mode="wait">
+        <motion.div 
+          className="flex items-center space-x-1.5"
+          initial={{ opacity: 0, y: -2, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 2, scale: 0.98 }}
+          transition={{ 
+            duration: 0.35,
+            ease: [0.2, 0.65, 0.3, 0.9],
+            scale: { duration: 0.3 }
+          }}
+          style={{ perspective: '1000px' }}
+        >
+          {breadcrumbs.map((item, index) => (
+            <Fragment key={item.path + index}>
+              {index > 0 && (
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.25, delay: index * 0.05 }}
+                  className="text-gray-300 select-none text-[10px] font-light transform-gpu"
+                >
+                  •
+                </motion.span>
+              )}
+              <BreadcrumbItemComponent 
+                item={item} 
+                isLast={index === breadcrumbs.length - 1} 
+              />
+            </Fragment>
+          ))}
+        </motion.div>
+      </AnimatePresence>
+    </nav>
   );
 };
 
 const SearchBar = () => {
   return (
-    <div className="relative">
-      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-      <input
-        type="search"
-        placeholder="Buscar..."
-        className="w-full pl-10 pr-4 py-2 rounded-lg bg-white dark:bg-dark-600 
-                 border border-gray-200 dark:border-dark-500
-                 text-gray-900 dark:text-gray-100
-                 placeholder-gray-400 dark:placeholder-gray-500
-                 focus:outline-none focus:ring-2 focus:ring-primary-500
-                 transition-all duration-200"
-      />
+    <div className="relative max-w-2xl w-full mx-auto">
+      <div className="relative">
+        <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 
+                                    transition-colors duration-200 group-hover:text-primary-500" />
+        <input
+          type="search"
+          placeholder="Buscar..."
+          className="w-full pl-12 pr-4 py-2.5 rounded-xl bg-white dark:bg-dark-600 
+                   border border-gray-200 dark:border-dark-500
+                   text-gray-900 dark:text-gray-100
+                   placeholder-gray-400 dark:placeholder-gray-500
+                   focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500
+                   transition-all duration-200 ease-in-out
+                   hover:border-primary-500/30 hover:shadow-sm"
+        />
+      </div>
     </div>
   );
 };
@@ -130,17 +275,17 @@ export const Header = ({ className = '' }: HeaderProps) => {
 
   return (
     <header className={`bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 ${className}`}>
-      <div className="px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center space-x-6 flex-1">
+      <div className="px-6 h-16 flex items-center justify-between gap-4">
+        <div className="flex-shrink-0">
           <Breadcrumb />
-          <div className="max-w-lg w-full">
-            <SearchBar />
-          </div>
         </div>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex-1 max-w-4xl">
+          <SearchBar />
+        </div>
+        
+        <div className="flex items-center space-x-4 flex-shrink-0">
           <NotificationsDropdown />
-
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-600 transition-colors">
               <div className="relative h-9 w-9 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10

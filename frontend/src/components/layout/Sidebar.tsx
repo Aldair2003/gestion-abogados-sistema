@@ -5,11 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   UserGroupIcon,
-  HomeIcon,
   CalendarIcon,
   ChevronDownIcon,
   ChevronDoubleLeftIcon,
   MapPinIcon,
+  EnvelopeIcon,
 } from '../icons/CustomIcons';
 import logo from '../../assets/logo1.svg';
 
@@ -167,49 +167,27 @@ export const Sidebar = () => {
       description: 'Gestionar cantones'
     },
     {
-      title: 'Usuarios',
+      title: 'Personas',
       icon: UserGroupIcon,
       subItems: [
         { 
-          title: 'Lista de Usuarios',
-          path: '/admin/usuarios',
-          description: 'Gestionar usuarios del sistema',
-          adminOnly: true
-        },
-        { 
-          title: 'Roles y Permisos',
-          path: '/admin/roles',
-          description: 'Configurar accesos',
-          adminOnly: true
+          title: 'Personas Recientes',
+          path: '/personas/recientes',
+          description: 'Ver personas más recientes'
         }
       ]
     },
     {
-      title: 'Expedientes',
-      icon: HomeIcon,
-      subItems: [
-        { 
-          title: 'Casos Activos',
-          path: '/expedientes/activos',
-          description: 'Ver casos en proceso'
-        },
-        { 
-          title: 'Casos Cerrados',
-          path: '/expedientes/cerrados',
-          description: 'Historial de casos'
-        },
-        { 
-          title: 'Nuevo Caso',
-          path: '/expedientes/crear',
-          description: 'Crear expediente'
-        }
-      ]
+      title: 'Correo',
+      icon: EnvelopeIcon,
+      path: '/correo',
+      description: 'Gestionar correo'
     },
     {
-      title: 'Calendario',
+      title: 'Agenda',
       icon: CalendarIcon,
-      path: '/calendario',
-      description: 'Ver calendario'
+      path: '/agenda',
+      description: 'Ver agenda'
     }
   ];
 
