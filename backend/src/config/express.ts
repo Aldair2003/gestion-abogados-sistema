@@ -8,6 +8,9 @@ import { UPLOAD_BASE_PATH } from './storage';
 // Cargar variables de entorno
 dotenv.config();
 
+// Verificar que `CORS_ORIGIN` se está leyendo correctamente
+console.log("🚀 CORS_ORIGIN en backend:", process.env.CORS_ORIGIN);
+
 export const configureExpress = (app: express.Application): void => {
   // Seguridad
   app.use(
@@ -19,10 +22,12 @@ export const configureExpress = (app: express.Application): void => {
 
   // Obtener orígenes permitidos desde la variable de entorno
   const allowedOrigins = process.env.CORS_ORIGIN?.split(',') || [];
+  console.log("✅ Allowed Origins:", allowedOrigins);
 
   // Middleware CORS
   app.use((req, res, next) => {
     const origin = req.headers.origin;
+    console.log("🔍 Petición desde:", origin);
 
     if (origin && (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app'))) {
       res.setHeader('Access-Control-Allow-Origin', origin);
@@ -30,6 +35,9 @@ export const configureExpress = (app: express.Application): void => {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
       res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+      console.log("✅ CORS permitido para:", origin);
+    } else {
+      console.warn("⛔ CORS bloqueado para:", origin);
     }
 
     // Manejar preflight requests (OPTIONS)
@@ -48,7 +56,7 @@ export const configureExpress = (app: express.Application): void => {
         if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
           callback(null, true);
         } else {
-          callback(new Error('No permitido por CORS'));
+          callback(new Error('⛔ No permitido por CORS'));
         }
       },
       credentials: true,
