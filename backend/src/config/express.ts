@@ -13,32 +13,7 @@ export const configureExpress = (app: express.Application): void => {
   
   // CORS
   app.use(cors({
-    origin: function(origin, callback) {
-      // Permitir solicitudes sin origen (como las aplicaciones móviles o Postman)
-      if (!origin) return callback(null, true);
-      
-      // Lista de dominios permitidos
-      const allowedDomains = [
-        'http://localhost:3001',
-        'http://localhost:5173',
-        'https://gestion-abogados-sistema.vercel.app',
-        /^https:\/\/gestion-abogados-sistema-.*\.vercel\.app$/
-      ];
-
-      // Verificar si el origen coincide con alguno de los permitidos
-      const isAllowed = allowedDomains.some(domain => {
-        if (domain instanceof RegExp) {
-          return domain.test(origin);
-        }
-        return domain === origin;
-      });
-
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true, // Permitir todos los orígenes temporalmente
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
