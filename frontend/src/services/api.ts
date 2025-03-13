@@ -6,7 +6,7 @@ console.log('API URL:', API_URL);
 
 // Crear instancia de axios con la configuración base
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: API_URL.replace(/\/$/, ''), // Remover slash final si existe
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
