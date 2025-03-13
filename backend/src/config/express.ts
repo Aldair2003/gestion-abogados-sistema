@@ -40,7 +40,7 @@ export const configureExpress = (app: express.Application): void => {
   app.use(cors({
     origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Range'],
     exposedHeaders: ['Content-Range', 'X-Content-Range']
   }));
