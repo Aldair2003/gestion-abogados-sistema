@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Obtener la URL base de la API
-const API_URL = process.env.REACT_APP_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app';
+const API_URL = process.env.REACT_APP_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app'.replace(/\/$/, '');
 console.log('API URL:', API_URL); // Para debugging
 
 // Crear instancia de axios con la configuración base
