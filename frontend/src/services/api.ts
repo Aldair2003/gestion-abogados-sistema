@@ -14,13 +14,19 @@ const api = axios.create({
   }
 });
 
-// Interceptor para agregar el token de autenticación
+// Interceptor para agregar el token de autenticación y el prefijo /api
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Asegurarse de que todas las rutas empiecen con /api
+    if (!config.url?.startsWith('/api')) {
+      config.url = `/api${config.url}`;
+    }
+
     console.log('Enviando petición:', {
       url: config.url,
       method: config.method,
