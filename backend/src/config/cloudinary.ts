@@ -10,7 +10,7 @@ cloudinary.config({
 
 // Configuración global para subidas
 const defaultUploadOptions = {
-  resource_type: 'auto',
+  resource_type: 'raw' as const,
   access_mode: 'public',
   use_filename: true,
   unique_filename: true,
@@ -24,9 +24,7 @@ export const uploadFile = async (file: Express.Multer.File, folder: string): Pro
     const options = {
       ...defaultUploadOptions,
       folder: `gestion-abogados/${folder}`,
-      resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'auto',
-      format: file.mimetype === 'application/pdf' ? 'pdf' : undefined,
-      flags: file.mimetype === 'application/pdf' ? 'attachment' : undefined
+      public_id: `${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`
     };
 
     console.log('Subiendo archivo a Cloudinary:', {
@@ -44,10 +42,6 @@ export const uploadFile = async (file: Express.Multer.File, folder: string): Pro
       format: result.format,
       resourceType: result.resource_type
     });
-
-    if (file.mimetype === 'application/pdf') {
-      return `${result.secure_url}?secure=true&dl=true`;
-    }
 
     return result.secure_url;
   } catch (error) {

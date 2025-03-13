@@ -45,29 +45,23 @@ export class StorageService {
     }
     
     const uploadOptions = {
-      folder: folder,
-      resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+      folder: `gestion-abogados/${folder}`,
+      resource_type: 'raw',
       access_mode: 'public',
       use_filename: true,
       unique_filename: true,
       overwrite: true,
-      format: file.mimetype === 'application/pdf' ? 'pdf' : undefined,
-      type: 'upload',
-      flags: file.mimetype === 'application/pdf' ? 'attachment' : undefined
+      public_id: `${Date.now()}-${file.originalname.replace(/\.[^/.]+$/, "")}`,
+      type: 'upload'
     };
 
     console.log('Opciones de subida a Cloudinary:', uploadOptions);
     const result = await this.cloudinary.uploader.upload(file.path, uploadOptions);
     console.log('Resultado de subida a Cloudinary:', result);
 
-    // Construir URL para PDFs
-    if (file.mimetype === 'application/pdf') {
-      // Asegurarnos de que la URL use HTTPS y tenga los parámetros necesarios
-      const baseUrl = result.secure_url.split('?')[0];
-      return `${baseUrl}?secure=true&dl=true`;
-    }
-
-    return result.secure_url;
+    // Construir URL para acceso público
+    const baseUrl = result.secure_url.split('?')[0];
+    return baseUrl;
   }
 
   private async saveLocally(file: Express.Multer.File, folder: string): Promise<string> {

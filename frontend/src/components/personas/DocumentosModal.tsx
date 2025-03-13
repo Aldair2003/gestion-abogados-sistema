@@ -180,18 +180,10 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
         // Remover cualquier parámetro existente
         url = url.split('?')[0];
         
-        // Configurar parámetros para visualización
-        const params = new URLSearchParams({
-          secure: 'true',
-          _: Date.now().toString(), // Prevenir cache
-        });
-
-        // Si es PDF, agregar parámetros específicos
+        // Para PDFs, usar fl_attachment para forzar la descarga
         if (document.mimetype === 'application/pdf') {
-          params.append('dl', 'false'); // Prevenir descarga automática
+          url = `${url}`;
         }
-
-        url = `${url}?${params.toString()}`;
       } else {
         // Para URLs locales
         const baseUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3000';
@@ -227,10 +219,18 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
     try {
       console.log('=== Iniciando descarga de documento ===');
       console.log('Documento a descargar:', selectedDocument);
-      console.log('URL de descarga:', previewUrl);
+      
+      let downloadUrl = previewUrl;
+      
+      // Si es una URL de Cloudinary, agregar fl_attachment
+      if (downloadUrl.includes('cloudinary.com')) {
+        downloadUrl = `${downloadUrl}?fl_attachment=true`;
+      }
+      
+      console.log('URL de descarga:', downloadUrl);
 
       // Realizar la petición fetch para obtener el blob
-      const response = await fetch(previewUrl);
+      const response = await fetch(downloadUrl);
       if (!response.ok) {
         throw new Error(`Error al descargar: ${response.status} ${response.statusText}`);
       }
