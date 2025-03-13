@@ -47,15 +47,24 @@ export class StorageService {
     const uploadOptions = {
       folder: folder,
       resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+      access_mode: 'public',
+      use_filename: true,
+      unique_filename: true,
+      overwrite: true,
       format: file.mimetype === 'application/pdf' ? 'pdf' : undefined,
-      flags: 'attachment'
+      type: 'upload',
+      flags: file.mimetype === 'application/pdf' ? 'attachment' : undefined
     };
 
+    console.log('Opciones de subida a Cloudinary:', uploadOptions);
     const result = await this.cloudinary.uploader.upload(file.path, uploadOptions);
+    console.log('Resultado de subida a Cloudinary:', result);
 
-    // Para PDFs, agregar parámetros de visualización
+    // Construir URL para PDFs
     if (file.mimetype === 'application/pdf') {
-      return `${result.secure_url}?secure=true`;
+      // Asegurarnos de que la URL use HTTPS y tenga los parámetros necesarios
+      const baseUrl = result.secure_url.split('?')[0];
+      return `${baseUrl}?secure=true&dl=true`;
     }
 
     return result.secure_url;

@@ -180,11 +180,16 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
         // Remover cualquier parámetro existente
         url = url.split('?')[0];
         
-        // Agregar parámetros para visualización segura
+        // Configurar parámetros para visualización
         const params = new URLSearchParams({
           secure: 'true',
           _: Date.now().toString(), // Prevenir cache
         });
+
+        // Si es PDF, agregar parámetros específicos
+        if (document.mimetype === 'application/pdf') {
+          params.append('dl', 'false'); // Prevenir descarga automática
+        }
 
         url = `${url}?${params.toString()}`;
       } else {
@@ -757,7 +762,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                       pointerEvents: 'auto',
                     }}
                     allow="fullscreen"
-                    sandbox="allow-same-origin allow-scripts allow-forms"
+                    sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
                   />
                 ) : (
                   // Para documentos locales

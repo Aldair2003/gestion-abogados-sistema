@@ -8,13 +8,47 @@ cloudinary.config({
   secure: true
 });
 
-// Función para subir imagen
-export const uploadImage = async (file: Express.Multer.File, folder: string): Promise<string> => {
+// Configuración global para subidas
+const defaultUploadOptions = {
+  resource_type: 'auto',
+  access_mode: 'public',
+  use_filename: true,
+  unique_filename: true,
+  overwrite: true,
+  type: 'upload'
+};
+
+// Función para subir archivo
+export const uploadFile = async (file: Express.Multer.File, folder: string): Promise<string> => {
   try {
-    const result = await cloudinary.uploader.upload(file.path, {
+    const options = {
+      ...defaultUploadOptions,
       folder: `gestion-abogados/${folder}`,
-      resource_type: "auto"
+      resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+      format: file.mimetype === 'application/pdf' ? 'pdf' : undefined,
+      flags: file.mimetype === 'application/pdf' ? 'attachment' : undefined
+    };
+
+    console.log('Subiendo archivo a Cloudinary:', {
+      filename: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      options
     });
+
+    const result = await cloudinary.uploader.upload(file.path, options);
+    
+    console.log('Resultado de subida:', {
+      publicId: result.public_id,
+      url: result.secure_url,
+      format: result.format,
+      resourceType: result.resource_type
+    });
+
+    if (file.mimetype === 'application/pdf') {
+      return `${result.secure_url}?secure=true&dl=true`;
+    }
+
     return result.secure_url;
   } catch (error) {
     console.error('Error al subir archivo a Cloudinary:', error);
@@ -22,8 +56,8 @@ export const uploadImage = async (file: Express.Multer.File, folder: string): Pr
   }
 };
 
-// Función para eliminar imagen
-export const deleteImage = async (publicId: string): Promise<void> => {
+// Función para eliminar archivo
+export const deleteFile = async (publicId: string): Promise<void> => {
   try {
     await cloudinary.uploader.destroy(publicId);
   } catch (error) {
