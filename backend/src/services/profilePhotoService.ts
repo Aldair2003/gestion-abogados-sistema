@@ -1,5 +1,4 @@
-import path from 'path';
-import fs from 'fs/promises';
+import { uploadFile, deleteFile } from '../config/cloudinary';
 import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
 import { prisma } from '../lib/prisma';
@@ -9,7 +8,6 @@ import { ActivityCategory } from '../types/prisma';
 // Configuración de imágenes
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads/profile-photos');
 
 export class ProfilePhotoService {
   /**
@@ -44,19 +42,20 @@ export class ProfilePhotoService {
   }
 
   /**
-   * Elimina físicamente una imagen del sistema de archivos
+   * Elimina una imagen de Cloudinary
    */
-  private static async deleteImageFile(photoUrl: string | null): Promise<void> {
-    if (!photoUrl) return;
+  private static async deleteCloudinaryImage(photoUrl: string | null): Promise<void> {
+    if (!photoUrl || !photoUrl.includes('cloudinary')) return;
 
     try {
-      const filePath = path.join(process.cwd(), photoUrl.replace(/^\/uploads\/profile-photos\//, 'uploads/profile-photos/'));
-      await fs.unlink(filePath);
+      // Extraer el public_id de la URL de Cloudinary
+      const urlParts = photoUrl.split('/');
+      const fileName = urlParts[urlParts.length - 1].split('.')[0];
+      const publicId = `gestion-abogados/profile-photos/${fileName}`;
+
+      await deleteFile(publicId);
     } catch (error) {
-      // Si el archivo no existe, ignoramos el error
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('Error al eliminar foto de perfil:', error);
-      }
+      console.error('Error al eliminar foto de Cloudinary:', error);
     }
   }
 
@@ -70,32 +69,20 @@ export class ProfilePhotoService {
     });
 
     if (user?.photoUrl) {
-      await this.deleteImageFile(user.photoUrl);
+      await this.deleteCloudinaryImage(user.photoUrl);
     }
   }
 
   /**
-   * Guarda una nueva foto de perfil
+   * Guarda una nueva foto de perfil en Cloudinary
    */
   static async savePhoto(file: Express.Multer.File, userId: number): Promise<string> {
     try {
       // Validar imagen
       await this.validateImage(file);
 
-      // Generar nombre único
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const ext = path.extname(file.originalname);
-      const fileName = `photo-${userId}-${uniqueSuffix}${ext}`;
-      const filePath = path.join(UPLOAD_DIR, fileName);
-
-      // Asegurarse de que el directorio existe
-      await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
-      // Mover archivo
-      await fs.rename(file.path, filePath);
-
-      // Construir URL relativa
-      const photoUrl = `/uploads/profile-photos/${fileName}`;
+      // Subir a Cloudinary
+      const photoUrl = await uploadFile(file, 'profile-photos');
 
       // Registrar actividad
       await logActivity(userId, 'UPDATE_PROFILE_PHOTO', {
@@ -104,20 +91,23 @@ export class ProfilePhotoService {
         details: {
           description: 'Foto de perfil actualizada',
           metadata: {
-            fileName,
+            fileName: file.originalname,
             fileType: file.mimetype,
-            fileSize: file.size
+            fileSize: file.size,
+            cloudinaryUrl: photoUrl
           }
         }
       });
 
       return photoUrl;
     } catch (error) {
-      // Limpiar archivo temporal si existe
-      if (file.path) {
-        await this.deleteImageFile(file.path);
-      }
-      throw error;
+      console.error('Error al subir foto a Cloudinary:', error);
+      throw new CustomError({
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Error al guardar la foto de perfil',
+        status: 500,
+        details: { error }
+      });
     }
   }
 
@@ -143,10 +133,6 @@ export class ProfilePhotoService {
 
       return newPhotoUrl;
     } catch (error) {
-      // Si algo falla, asegurarse de limpiar el archivo temporal
-      if (file.path) {
-        await this.deleteImageFile(file.path);
-      }
       throw error;
     }
   }
