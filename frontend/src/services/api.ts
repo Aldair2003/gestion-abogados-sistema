@@ -1,12 +1,12 @@
 import axios from 'axios';
 
 // Obtener la URL base de la API
-const API_URL = process.env.REACT_APP_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app'.replace(/\/$/, '');
-console.log('API URL:', API_URL); // Para debugging
+const API_URL = process.env.REACT_APP_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app';
+console.log('API URL:', API_URL);
 
 // Crear instancia de axios con la configuración base
 const api = axios.create({
-  baseURL: `${API_URL}/api`,
+  baseURL: API_URL.replace(/\/$/, ''), // Remover slash final si existe
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
