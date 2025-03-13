@@ -173,16 +173,29 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       console.log('=== Iniciando previsualización de documento ===');
       console.log('Documento seleccionado:', document);
       
-      // Construir la URL correctamente
-      const baseUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3000';
-      const documentPath = document.url.replace(/\\/g, '/');
-      const url = document.url.startsWith('http') 
-        ? document.url 
-        : `${baseUrl}/${documentPath}`;
+      let url = document.url;
+      
+      // Si es una URL de Cloudinary, agregar parámetros para permitir la visualización
+      if (url.includes('cloudinary.com')) {
+        // Remover cualquier parámetro existente
+        url = url.split('?')[0];
+        
+        // Agregar parámetros para el visor de PDF
+        url = `${url}?secure=true&download=false`;
+        
+        // Si es un PDF, usar el visor de Cloudinary
+        if (document.mimetype === 'application/pdf') {
+          url = url.replace('/upload/', '/upload/fl_attachment/');
+        }
+      } else {
+        // Para URLs locales
+        const baseUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3000';
+        const documentPath = document.url.replace(/\\/g, '/');
+        url = document.url.startsWith('http') ? document.url : `${baseUrl}/${documentPath}`;
+      }
       
       console.log('URL construida para preview:', url);
       
-      // Primero establecer la URL y luego el documento
       setPreviewUrl(url);
       setSelectedDocument(document);
     } catch (error) {
@@ -733,15 +746,31 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                   isDarkMode ? 'border-gray-700/50' : 'border-gray-200'
                 }`}
               >
-                <iframe
-                  src={`${previewUrl}#toolbar=1&download=0&print=0`}
-                  className="w-full h-[calc(100vh-300px)] min-h-[500px] pdf-viewer"
-                  title={selectedDocument ? getDocumentTypeLabel(selectedDocument.tipo) : 'Vista previa'}
-                  style={{ 
-                    border: 'none',
-                    pointerEvents: 'auto',
-                  }}
-                />
+                {selectedDocument?.url.includes('cloudinary.com') ? (
+                  // Para documentos de Cloudinary
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-[calc(100vh-300px)] min-h-[500px] pdf-viewer"
+                    title={selectedDocument ? getDocumentTypeLabel(selectedDocument.tipo) : 'Vista previa'}
+                    style={{ 
+                      border: 'none',
+                      pointerEvents: 'auto',
+                    }}
+                    allow="fullscreen"
+                    sandbox="allow-same-origin allow-scripts allow-forms"
+                  />
+                ) : (
+                  // Para documentos locales
+                  <iframe
+                    src={`${previewUrl}#toolbar=1&download=0&print=0`}
+                    className="w-full h-[calc(100vh-300px)] min-h-[500px] pdf-viewer"
+                    title={selectedDocument ? getDocumentTypeLabel(selectedDocument.tipo) : 'Vista previa'}
+                    style={{ 
+                      border: 'none',
+                      pointerEvents: 'auto',
+                    }}
+                  />
+                )}
                 <style>
                   {`
                     /* Deshabilitar completamente el botón de descarga */

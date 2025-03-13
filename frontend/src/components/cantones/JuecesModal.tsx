@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import Select, { StylesConfig, CSSObjectWithLabel } from 'react-select';
+import { getApiUrl } from '../../utils/urls';
 
 interface Canton {
   id: number;
@@ -66,7 +67,7 @@ const JuecesModal: React.FC<JuecesModalProps> = ({
   const fetchCantones = useCallback(async () => {
     try {
       setIsLoadingCantones(true);
-      const response = await axios.get('/api/cantones');
+      const response = await axios.get(getApiUrl('/cantones'));
       if (response.data?.data?.cantones) {
         setCantones(response.data.data.cantones);
       }
@@ -88,7 +89,7 @@ const JuecesModal: React.FC<JuecesModalProps> = ({
   const fetchJueces = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`/api/cantones/${cantonId}/jueces`);
+      const response = await axios.get(getApiUrl(`/cantones/${cantonId}/jueces`));
       if (response.data?.data) {
         setJueces(response.data.data);
         onJuecesUpdate?.(response.data.data.length);
@@ -113,14 +114,23 @@ const JuecesModal: React.FC<JuecesModalProps> = ({
       const cantonesIds = selectedCantones.map(c => Number(c.id));
       let response;
       
+      console.log('Variables de entorno:', {
+        REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+        REACT_APP_ENV: process.env.REACT_APP_ENV
+      });
+
       if (editingJuez) {
-        response = await axios.put(`/api/jueces/${editingJuez.id}`, { 
+        const url = getApiUrl(`/jueces/${editingJuez.id}`);
+        console.log('URL para editar juez:', url);
+        response = await axios.put(url, { 
           nombre: nombreJuez,
           cantones: cantonesIds
         });
         toast.success('Juez actualizado exitosamente');
       } else {
-        response = await axios.post(`/api/cantones/${cantonId}/jueces`, { 
+        const url = getApiUrl(`/cantones/${cantonId}/jueces`);
+        console.log('URL para crear juez:', url);
+        response = await axios.post(url, { 
           nombre: nombreJuez,
           cantones: cantonesIds
         });
@@ -157,6 +167,16 @@ const JuecesModal: React.FC<JuecesModalProps> = ({
       fetchJueces(); // Actualizar la lista completa
     } catch (error: any) {
       console.error('Error al guardar juez:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Detalles del error:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers,
+          message: error.message,
+          code: error.code,
+          config: error.config
+        });
+      }
       toast.error(error.response?.data?.message || 'Error al guardar el juez');
     }
   };
@@ -177,13 +197,25 @@ const JuecesModal: React.FC<JuecesModalProps> = ({
     if (!juezToDelete) return;
     
     try {
-      await axios.delete(`/api/cantones/${cantonId}/jueces/${juezToDelete.id}`);
+      const url = getApiUrl(`/cantones/${cantonId}/jueces/${juezToDelete.id}`);
+      console.log('URL para eliminar juez:', url);
+      await axios.delete(url);
       toast.success('Juez eliminado del cantón exitosamente');
       fetchJueces();
       setShowDeleteConfirm(false);
       setJuezToDelete(null);
     } catch (error: any) {
       console.error('Error al eliminar juez:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Detalles del error:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          headers: error.response?.headers,
+          message: error.message,
+          code: error.code,
+          config: error.config
+        });
+      }
       toast.error(error.response?.data?.message || 'Error al eliminar el juez');
     }
   };
