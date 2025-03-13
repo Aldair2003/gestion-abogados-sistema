@@ -93,7 +93,7 @@ export const sendPasswordResetEmail = async (email: string, resetToken: string):
 };
 
 export const sendWelcomeEmail = async (email: string, temporalPassword: string): Promise<void> => {
-  const loginUrl = process.env.FRONTEND_URL || 'https://gestion-abogados-sistema-gaw4n85xg-alda04xs-projects.vercel.app/login';
+  const loginUrl = process.env.FRONTEND_URL || 'https://gestion-abogados-sistema.vercel.app';
   const content = `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
   <div style="background: #1a365d; padding: 20px; text-align: center;">
