@@ -11,6 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import cantonIcon from '../../assets/canton.png';
 import { usePermissions } from '../../hooks/usePermissions';
 import { permissionService } from '../../services/permissionService';
+import { getApiUrl, getPhotoUrl } from '../../utils/urls';
 
 
 interface Canton {
@@ -27,12 +28,12 @@ interface Canton {
 }
 
 // Configurar axios
-axios.defaults.baseURL = 'http://localhost:3000';
-axios.defaults.headers.common['Accept'] = 'application/json';
-axios.defaults.headers.common['Content-Type'] = 'application/json';
+// axios.defaults.baseURL = 'http://localhost:3000';
+// axios.defaults.headers.common['Accept'] = 'application/json';
+// axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 // URL base para las imágenes
-const IMAGE_BASE_URL = 'http://localhost:3000';
+// const IMAGE_BASE_URL = 'http://localhost:3000';
 
 const CantonesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -80,22 +81,13 @@ const CantonesPage: React.FC = () => {
       }, {});
 
       // Añadir la URL base a las imágenes y asegurarse de que la ruta sea correcta
-      const cantonesConImagenes = response.map((canton: Canton) => {
-        let imagenUrl;
-        if (canton.imagenUrl) {
-          imagenUrl = canton.imagenUrl.startsWith('http') 
-            ? canton.imagenUrl 
-            : `${IMAGE_BASE_URL}${canton.imagenUrl.startsWith('/') ? '' : '/'}${canton.imagenUrl}`;
-        }
-        
-        return {
-          ...canton,
-          imagenUrl,
-          totalJueces: juecesMap[canton.id] || 0,
-          createdAt: canton.createdAt,
-          updatedAt: canton.updatedAt
-        };
-      });
+      const cantonesConImagenes = response.map((canton: Canton) => ({
+        ...canton,
+        imagenUrl: canton.imagenUrl ? getPhotoUrl(canton.imagenUrl) : undefined,
+        totalJueces: juecesMap[canton.id] || 0,
+        createdAt: canton.createdAt,
+        updatedAt: canton.updatedAt
+      }));
 
       console.log('Cantones procesados:', cantonesConImagenes);
       setCantones(cantonesConImagenes);
@@ -205,7 +197,7 @@ const CantonesPage: React.FC = () => {
     if (!cantonToDelete) return;
 
     try {
-      await axios.delete(`/api/cantones/${cantonToDelete.id}`, {
+      await axios.delete(getApiUrl(`/cantones/${cantonToDelete.id}`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -239,52 +231,52 @@ const CantonesPage: React.FC = () => {
       }
 
       const url = selectedCanton
-        ? `/api/cantones/${selectedCanton.id}`
-        : '/api/cantones';
-      const method = selectedCanton ? 'put' : 'post';
+        ? getApiUrl(`/cantones/${selectedCanton.id}`)
+        : getApiUrl('/cantones');
+
+      console.log('Variables de entorno:', {
+        REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+        REACT_APP_ENV: process.env.REACT_APP_ENV,
+        URL_FINAL: url
+      });
 
       console.log('Enviando petición:', {
-        method,
+        method: selectedCanton ? 'put' : 'post',
         url,
-        hasImage: !!formData.imagen
+        hasImage: !!formData.imagen,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
       const response = await axios({
-        method,
+        method: selectedCanton ? 'put' : 'post',
         url,
         data,
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
-        },
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
-      console.log('Respuesta después de guardar:', {
-        status: response.status,
-        data: response.data,
-        headers: response.headers
-      });
-
-      toast.success(
-        selectedCanton
-          ? 'Cantón actualizado exitosamente'
-          : 'Cantón creado exitosamente'
-      );
-      setIsModalOpen(false);
-      await fetchCantones(); // Esperar a que se recarguen los cantones
+      if (response.status === 200 || response.status === 201) {
+        toast.success(selectedCanton ? 'Cantón actualizado exitosamente' : 'Cantón creado exitosamente');
+        setIsModalOpen(false);
+        fetchCantones();
+      }
     } catch (error) {
-      console.error('Error completo:', error);
+      console.error('Error al guardar el cantón:', error);
       if (axios.isAxiosError(error)) {
         console.error('Detalles del error:', {
           status: error.response?.status,
           data: error.response?.data,
-          headers: error.response?.headers
+          headers: error.response?.headers,
+          message: error.message,
+          code: error.code,
+          config: error.config
         });
-        if (error.response?.status === 401) {
-          toast.error('Sesión expirada. Por favor, inicie sesión nuevamente.');
-        } else {
-          toast.error(`Error al guardar el cantón: ${error.response?.data?.message || error.message}`);
-        }
+        toast.error(`Error: ${error.response?.data?.message || 'Error desconocido'}`);
       } else {
         toast.error('Error al guardar el cantón');
       }
