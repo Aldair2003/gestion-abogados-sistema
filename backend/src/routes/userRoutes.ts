@@ -744,6 +744,9 @@ const adminAuth: RequestHandler[] = [
  */
 router.post('/login', loginLimiter, asyncHandler(userController.login));
 
+// Ruta de keep-alive (mantener sesión activa)
+router.post('/keep-alive', authMiddleware, withAuthenticatedHandler(userController.keepAlive));
+
 // Rutas que requieren autenticación de admin
 router.post(
   '/register',
@@ -949,6 +952,13 @@ router.get(
   '/collaborators',
   authMiddleware,
   asyncHandler(withAuthenticatedHandler(userController.getCollaborators))
+);
+
+// Ruta para actualizar foto de perfil
+router.post(
+  '/me/photo',
+  [authMiddleware, upload.single('photo')],
+  withAuthenticatedHandler(userController.updateProfilePhoto)
 );
 
 export default router; 

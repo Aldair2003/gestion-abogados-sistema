@@ -1,4 +1,4 @@
-import { Router, Response, RequestHandler } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { authenticateToken } from '../middlewares/auth';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest, withAuth } from '../types/common';
@@ -16,7 +16,11 @@ interface RefreshTokenRequest {
 const router = Router();
 
 // Handler de login
-const loginHandler: RequestHandler = async (req, res, next): Promise<void> => {
+const loginHandler = async (
+  req: Request, 
+  res: Response, 
+  next: NextFunction
+): Promise<void> => {
   try {
     console.log('[Auth] Recibida petición de login:', {
       body: req.body,
@@ -161,7 +165,10 @@ const loginHandler: RequestHandler = async (req, res, next): Promise<void> => {
 };
 
 // Handler de verificación de token
-const verifyHandler = withAuth(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+const verifyHandler = withAuth(async (
+  req: AuthenticatedRequest, 
+  res: Response
+): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id }
@@ -208,7 +215,10 @@ const verifyHandler = withAuth(async (req: AuthenticatedRequest, res: Response):
 });
 
 // Handler de logout
-const logoutHandler = withAuth(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+const logoutHandler = withAuth(async (
+  req: AuthenticatedRequest, 
+  res: Response
+): Promise<void> => {
   try {
     await prisma.user.update({
       where: { id: req.user.id },
@@ -244,75 +254,11 @@ const logoutHandler = withAuth(async (req: AuthenticatedRequest, res: Response):
   }
 });
 
-// Handler de keep-alive
-const keepAliveHandler = withAuth(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.user.id }
-    });
-
-    if (!user) {
-      res.status(404).json({
-        status: 'error',
-        message: 'Usuario no encontrado',
-        error: {
-          code: ApiErrorCode.NOT_FOUND,
-          message: 'Usuario no encontrado',
-          details: 'El usuario asociado al token no existe'
-        }
-      });
-      return;
-    }
-
-    // Generar nuevo token con tiempo de actividad actualizado
-    const newToken = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        rol: user.rol,
-        isFirstLogin: user.isFirstLogin,
-        isProfileCompleted: user.isProfileCompleted,
-        lastActivity: new Date().toISOString(),
-        tokenVersion: user.tokenVersion
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '4h' }
-    );
-
-    res.json({
-      status: 'success',
-      message: 'Sesión actualizada',
-      data: {
-        token: newToken
-      }
-    });
-
-    // Registrar actividad
-    await logActivity(user.id, 'SESSION_KEEP_ALIVE', {
-      category: ActivityCategory.SESSION,
-      details: {
-        description: 'Sesión mantenida activa',
-        metadata: {
-          timestamp: new Date().toISOString()
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error en keep-alive:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: 'Error al procesar la solicitud',
-        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-      }
-    });
-  }
-});
-
 // Handler de refresh token
-const refreshTokenHandler: RequestHandler = async (req, res): Promise<void> => {
+const refreshTokenHandler = async (
+  req: Request, 
+  res: Response
+): Promise<void> => {
   try {
     const { refreshToken } = req.body as RefreshTokenRequest;
 
@@ -425,9 +371,8 @@ const refreshTokenHandler: RequestHandler = async (req, res): Promise<void> => {
 
 // Rutas
 router.post('/login', loginHandler);
-router.get('/verify', authenticateToken, verifyHandler);
+router.post('/verify', authenticateToken, verifyHandler);
 router.post('/logout', authenticateToken, logoutHandler);
-router.post('/keep-alive', authenticateToken, keepAliveHandler);
 router.post('/refresh-token', refreshTokenHandler);
 
 export default router; 

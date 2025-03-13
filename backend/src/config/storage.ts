@@ -7,7 +7,11 @@ import { ApiErrorCode } from '../types/apiError';
 
 // Tipos de archivos permitidos
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-export const ALLOWED_DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+export const ALLOWED_DOCUMENT_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+];
 
 // Tamaños máximos
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB

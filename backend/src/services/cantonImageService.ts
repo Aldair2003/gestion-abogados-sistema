@@ -1,15 +1,12 @@
-import path from 'path';
-import fs from 'fs/promises';
 import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
 import { prisma } from '../lib/prisma';
-import { logActivity } from './logService';
-import { ActivityCategory } from '../types/prisma';
+import { ActivityCategory } from '@prisma/client';
+import { storageService } from './storageService';
 
 // Configuración de imágenes
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads/cantones');
 
 export class CantonImageService {
   /**
@@ -44,78 +41,47 @@ export class CantonImageService {
   }
 
   /**
-   * Elimina físicamente una imagen del sistema de archivos
-   */
-  private static async deleteImageFile(imageUrl: string | null): Promise<void> {
-    if (!imageUrl) return;
-
-    try {
-      const filePath = path.join(process.cwd(), imageUrl.replace(/^\/uploads\/cantones\//, 'uploads/cantones/'));
-      await fs.unlink(filePath);
-    } catch (error) {
-      // Si el archivo no existe, ignoramos el error
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        console.error('Error al eliminar imagen:', error);
-      }
-    }
-  }
-
-  /**
-   * Elimina la imagen anterior de un cantón
-   */
-  private static async deleteOldImage(cantonId: number): Promise<void> {
-    const canton = await prisma.canton.findUnique({
-      where: { id: cantonId },
-      select: { imagenUrl: true }
-    });
-
-    if (canton?.imagenUrl) {
-      await this.deleteImageFile(canton.imagenUrl);
-    }
-  }
-
-  /**
    * Guarda una nueva imagen para un cantón
    */
-  static async saveImage(file: Express.Multer.File, cantonId: number, userId: number): Promise<string> {
+  static async saveImage(
+    file: Express.Multer.File,
+    cantonId: number,
+    userId: number
+  ): Promise<string> {
     try {
-      // Validar imagen
+      // Validar la imagen antes de procesarla
       await this.validateImage(file);
 
-      // Generar nombre único
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const ext = path.extname(file.originalname);
-      const fileName = `canton-${cantonId}-${uniqueSuffix}${ext}`;
-      const filePath = path.join(UPLOAD_DIR, fileName);
+      // Guardar la imagen usando el storageService
+      const imageUrl = await storageService.saveFile(file, 'cantones');
 
-      // Asegurarse de que el directorio existe
-      await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
-      // Mover archivo
-      await fs.rename(file.path, filePath);
-
-      // Construir URL relativa
-      const imageUrl = `/uploads/cantones/${fileName}`;
-
-      // Registrar actividad
-      await logActivity(userId, 'UPDATE_CANTON_IMAGE', {
-        category: ActivityCategory.CANTON,
-        targetId: cantonId,
-        details: {
-          description: 'Imagen de cantón actualizada',
-          metadata: {
-            fileName,
-            fileType: file.mimetype,
-            fileSize: file.size
+      // Registrar la actividad
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          action: 'UPLOAD_CANTON_IMAGE',
+          category: ActivityCategory.CANTON,
+          targetId: cantonId,
+          details: {
+            description: 'Imagen de cantón subida exitosamente',
+            metadata: {
+              cantonId,
+              filename: file.originalname,
+              imageUrl
+            }
           }
         }
       });
 
       return imageUrl;
     } catch (error) {
-      // Limpiar archivo temporal si existe
+      // Si algo falla y existe un archivo temporal, eliminarlo
       if (file.path) {
-        await this.deleteImageFile(file.path);
+        try {
+          await storageService.deleteFile(file.path);
+        } catch (deleteError) {
+          console.error('Error al eliminar archivo temporal:', deleteError);
+        }
       }
       throw error;
     }
@@ -124,28 +90,55 @@ export class CantonImageService {
   /**
    * Actualiza la imagen de un cantón
    */
-  static async updateImage(file: Express.Multer.File, cantonId: number, userId: number): Promise<string> {
+  static async updateImage(
+    file: Express.Multer.File,
+    cantonId: number,
+    userId: number
+  ): Promise<string> {
     try {
-      // Eliminar imagen anterior
-      await this.deleteOldImage(cantonId);
-      
-      // Guardar nueva imagen
-      const newImageUrl = await this.saveImage(file, cantonId, userId);
+      // Validar la imagen antes de procesarla
+      await this.validateImage(file);
 
-      // Actualizar URL en la base de datos
-      await prisma.canton.update({
-        where: { id: cantonId },
-        data: { 
-          imagenUrl: newImageUrl,
-          updatedBy: userId
+      // Obtener la imagen anterior
+      const canton = await prisma.canton.findUnique({
+        where: { id: cantonId }
+      });
+
+      // Si hay una imagen anterior, eliminarla
+      if (canton?.imagenUrl) {
+        await storageService.deleteFile(canton.imagenUrl);
+      }
+
+      // Guardar la nueva imagen
+      const imageUrl = await storageService.saveFile(file, 'cantones');
+
+      // Registrar la actividad
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          action: 'UPDATE_CANTON_IMAGE',
+          category: ActivityCategory.CANTON,
+          targetId: cantonId,
+          details: {
+            description: 'Imagen de cantón actualizada',
+            metadata: {
+              cantonId,
+              oldImageUrl: canton?.imagenUrl,
+              newImageUrl: imageUrl
+            }
+          }
         }
       });
 
-      return newImageUrl;
+      return imageUrl;
     } catch (error) {
-      // Si algo falla, asegurarse de limpiar el archivo temporal
+      // Si algo falla y existe un archivo temporal, eliminarlo
       if (file.path) {
-        await this.deleteImageFile(file.path);
+        try {
+          await storageService.deleteFile(file.path);
+        } catch (deleteError) {
+          console.error('Error al eliminar archivo temporal:', deleteError);
+        }
       }
       throw error;
     }
@@ -154,40 +147,13 @@ export class CantonImageService {
   /**
    * Elimina la imagen de un cantón
    */
-  static async deleteImage(cantonId: number, userId: number): Promise<void> {
+  static async deleteImage(imageUrl: string): Promise<boolean> {
     try {
-      // Obtener y eliminar la imagen actual
-      await this.deleteOldImage(cantonId);
-
-      // Actualizar el cantón para quitar la referencia a la imagen
-      await prisma.canton.update({
-        where: { id: cantonId },
-        data: { 
-          imagenUrl: null,
-          updatedBy: userId
-        }
-      });
-
-      // Registrar actividad
-      await logActivity(userId, 'DELETE_CANTON_IMAGE', {
-        category: ActivityCategory.CANTON,
-        targetId: cantonId,
-        details: {
-          description: 'Imagen de cantón eliminada',
-          metadata: {
-            timestamp: new Date().toISOString(),
-            cantonId,
-            action: 'DELETE'
-          }
-        }
-      });
+      await storageService.deleteFile(imageUrl);
+      return true;
     } catch (error) {
-      throw new CustomError({
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: 'Error al eliminar la imagen del cantón',
-        status: 500,
-        details: { cantonId, error }
-      });
+      console.error('Error al eliminar imagen:', error);
+      return false;
     }
   }
 } 

@@ -32,6 +32,7 @@ import { ApiErrorCode } from '../types/apiError';
 import { JsonValue } from '../types/activity';
 import { ProfilePhotoService } from '../services/profilePhotoService';
 import { CustomError } from '../utils/customError';
+import { ActivityCategory } from '../types/prisma';
 
 dotenv.config();
 
@@ -54,21 +55,6 @@ interface TransactionClient {
   user: {
     delete: (args: any) => Promise<any>;
   };
-}
-
-export enum ActivityCategory {
-  AUTH = 'AUTH',
-  USER = 'USER',
-  PROFILE = 'PROFILE',
-  SYSTEM = 'SYSTEM',
-  PERMISSION = 'PERMISSION',
-  ADMINISTRATIVE = 'ADMINISTRATIVE',
-  ACCOUNT_STATUS = 'ACCOUNT_STATUS',
-  SESSION = 'SESSION',
-  CANTON = 'CANTON',
-  JUEZ = 'JUEZ',
-  PERSONA = 'PERSONA',
-  DOCUMENTO = 'DOCUMENTO'
 }
 
 const serializeUserData = (user: any): Record<string, JsonValue> => {
@@ -2312,6 +2298,72 @@ export const getCollaborators = async (_req: Request, res: Response): Promise<vo
       status: 'error',
       message: 'Error al obtener colaboradores',
       error: (error as Error).message
+    });
+  }
+};
+
+export const keepAlive = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    });
+
+    if (!user) {
+      res.status(404).json({
+        status: 'error',
+        message: 'Usuario no encontrado',
+        error: {
+          code: ApiErrorCode.NOT_FOUND,
+          message: 'Usuario no encontrado',
+          details: 'El usuario asociado al token no existe'
+        }
+      });
+      return;
+    }
+
+    // Generar nuevo token con tiempo de actividad actualizado
+    const newToken = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        rol: user.rol,
+        isFirstLogin: user.isFirstLogin,
+        isProfileCompleted: user.isProfileCompleted,
+        lastActivity: new Date().toISOString(),
+        tokenVersion: user.tokenVersion
+      },
+      process.env.JWT_SECRET!,
+      { expiresIn: '4h' }
+    );
+
+    res.json({
+      status: 'success',
+      message: 'Sesión actualizada',
+      data: {
+        token: newToken
+      }
+    });
+
+    // Registrar actividad
+    await logActivity(user.id, 'SESSION_KEEP_ALIVE', {
+      category: ActivityCategory.SESSION,
+      details: {
+        description: 'Sesión mantenida activa',
+        metadata: {
+          timestamp: new Date().toISOString()
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error en keep-alive:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Error interno del servidor',
+      error: {
+        code: ApiErrorCode.INTERNAL_ERROR,
+        message: 'Error al procesar la solicitud',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      }
     });
   }
 }; 

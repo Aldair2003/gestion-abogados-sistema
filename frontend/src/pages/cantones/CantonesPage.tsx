@@ -11,7 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import cantonIcon from '../../assets/canton.png';
 import { usePermissions } from '../../hooks/usePermissions';
 import { permissionService } from '../../services/permissionService';
-import { User } from '../../types/user';
+
 
 interface Canton {
   id: number;

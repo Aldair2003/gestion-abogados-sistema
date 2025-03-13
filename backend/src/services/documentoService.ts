@@ -1,9 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import { prisma } from '../lib/prisma';
 import { TipoDocumento } from '@prisma/client';
 import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
+import { storageService } from './storageService';
 
 const DOCUMENTOS_OBLIGATORIOS = [
   TipoDocumento.CEDULA,
@@ -54,11 +53,14 @@ export class DocumentoService {
         });
       }
 
+      // Guardar el archivo usando storageService
+      const fileUrl = await storageService.saveFile(file, 'documentos');
+
       // Crear el registro del nuevo documento
       const documento = await prisma.documento.create({
         data: {
           tipo,
-          url: `uploads/documentos/${file.filename}`.replace(/\\/g, '/'),
+          url: fileUrl,
           filename: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
@@ -73,48 +75,24 @@ export class DocumentoService {
 
       return documento;
     } catch (error) {
-      // Si algo falla, eliminar el archivo si se subió
-      if (file.path && fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
+      // Si algo falla y existe un archivo temporal, eliminarlo
+      if (file.path) {
+        try {
+          await storageService.deleteFile(file.path);
+        } catch (deleteError) {
+          console.error('Error al eliminar archivo temporal:', deleteError);
+        }
       }
       throw error;
     }
   }
 
-  static async eliminarArchivoFisico(urlRelativa: string) {
+  static async eliminarArchivoFisico(fileUrl: string) {
     try {
-      // Normalizar la ruta relativa eliminando /uploads/ si existe
-      const rutaNormalizada = urlRelativa
-        .replace(/^\/uploads\//, '')
-        .replace(/^uploads\//, '');
-      
-      // Construir la ruta completa
-      const rutaCompleta = path.join(process.cwd(), 'uploads', rutaNormalizada);
-      
-      console.log('Eliminando archivo:', {
-        urlOriginal: urlRelativa,
-        rutaNormalizada,
-        rutaCompleta,
-        exists: fs.existsSync(rutaCompleta),
-        cwd: process.cwd()
-      });
-
-      if (fs.existsSync(rutaCompleta)) {
-        fs.unlinkSync(rutaCompleta);
-        console.log('Archivo eliminado físicamente:', rutaCompleta);
-        return true;
-      } else {
-        console.log('El archivo no existe físicamente:', rutaCompleta);
-        return false;
-      }
+      await storageService.deleteFile(fileUrl);
+      return true;
     } catch (error) {
-      console.error('Error al eliminar archivo físico:', {
-        error,
-        urlRelativa,
-        stack: error instanceof Error ? error.stack : undefined,
-        errorCode: error instanceof Error && 'code' in error ? (error as any).code : undefined
-      });
-      // No lanzamos el error para que no afecte el flujo principal
+      console.error('Error al eliminar archivo:', error);
       return false;
     }
   }

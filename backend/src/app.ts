@@ -1,28 +1,44 @@
 import express, { Request, Response } from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
+import cantonRoutes from './routes/cantonRoutes';
+import personaRoutes from './routes/personaRoutes';
 import { prisma } from './lib/prisma';
 import { setupSwagger } from './swagger';
 import permissionRoutes from './routes/permissionRoutes';
 import { sendWelcomeEmail } from './services/emailService';
-import routes from './routes';
 import { errorHandler } from './middlewares/errorHandler';
-import path from 'path';
 import { initializeSystem } from './middlewares/initializeSystem';
+import { configureExpress } from './config/express';
+import { UPLOAD_BASE_PATH } from './config/storage';
 
 dotenv.config();
 
 export const app = express();
 
-// Middlewares básicos
-app.use(cors()); // CORS ahora se configura en `express.ts`
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Configurar Express (middlewares, CORS, etc.)
+configureExpress(app);
 
 // Configurar directorio de archivos estáticos
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/', (_, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+  next();
+}, express.static(UPLOAD_BASE_PATH));
+
+app.use('/documentos', (_, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+  res.setHeader('X-Frame-Options', 'ALLOWALL');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+  next();
+}, express.static(UPLOAD_BASE_PATH + '/documentos'));
 
 // Configurar Swagger antes de las rutas API
 setupSwagger(app);
@@ -30,7 +46,8 @@ setupSwagger(app);
 // Rutas API
 app.use('/api/users', userRoutes);
 app.use('/api/permissions', permissionRoutes);
-app.use('/api', routes);
+app.use('/api/cantones', cantonRoutes);
+app.use('/api/personas', personaRoutes);
 
 // Ruta de prueba para email
 app.post('/test-email', async (_req: Request, res: Response) => {

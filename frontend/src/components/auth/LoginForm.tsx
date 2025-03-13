@@ -26,7 +26,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
         passwordLength: data.password.length
       });
 
-      const response = await api.post('/users/login', {
+      const response = await api.post('users/login', {
         email: data.email,
         password: data.password
       });

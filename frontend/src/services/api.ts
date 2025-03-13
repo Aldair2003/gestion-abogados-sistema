@@ -1,20 +1,24 @@
 import axios from 'axios';
 
-// Obtener la URL base de la API
-const API_URL = process.env.REACT_APP_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app';
-console.log('API URL:', API_URL);
+const getBaseUrl = () => {
+  // En desarrollo, usa localhost
+  if (process.env.REACT_APP_ENV === 'development') {
+    return process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+  }
+  // En producción, usa la URL de Railway
+  return process.env.REACT_APP_API_URL || 'https://gestion-abogados-sistema-production.up.railway.app/api';
+};
 
-// Crear instancia de axios con la configuración base
 const api = axios.create({
-  baseURL: API_URL.replace(/\/$/, ''), // Remover slash final si existe
+  baseURL: getBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+    'Accept': 'application/json',
+  },
 });
 
-// Interceptor para agregar el token de autenticación y el prefijo /api
+// Interceptor para agregar el token de autenticación
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -22,13 +26,17 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Asegurarse de que todas las rutas empiecen con /api
-    if (!config.url?.startsWith('/api')) {
-      config.url = `/api${config.url}`;
+    // Limpiar cualquier doble barra en la URL
+    if (config.url) {
+      config.url = config.url.replace(/\/+/g, '/');
+      if (!config.url.startsWith('/')) {
+        config.url = '/' + config.url;
+      }
     }
 
     console.log('Enviando petición:', {
       url: config.url,
+      fullUrl: `${config.baseURL}${config.url}`,
       method: config.method,
       headers: config.headers,
       data: config.data

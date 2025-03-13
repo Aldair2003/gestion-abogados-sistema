@@ -16,11 +16,14 @@ export const configureExpress = (app: express.Application): void => {
   app.use(
     helmet({
       contentSecurityPolicy: false,
-      crossOriginEmbedderPolicy: false
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: false,
+      crossOriginOpenerPolicy: false,
+      xFrameOptions: false
     })
   );
 
-  // Obtener orígenes permitidos desde la variable de entorno
+  // Obtener orígenes permitidos
   const allowedOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(',')
     : [
@@ -35,18 +38,11 @@ export const configureExpress = (app: express.Application): void => {
 
   // Middleware CORS
   app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
-        callback(null, true);
-      } else {
-        console.warn("⛔ CORS bloqueado para:", origin);
-        callback(new Error('⛔ No permitido por CORS'));
-      }
-    },
+    origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    exposedHeaders: ['Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'Range'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
   }));
 
   // Middleware de logging
@@ -57,15 +53,16 @@ export const configureExpress = (app: express.Application): void => {
   app.use(express.urlencoded({ extended: true }));
 
   // Servir archivos estáticos
-  app.use('/uploads', express.static(UPLOAD_BASE_PATH, {
-    setHeaders: (res, filePath) => {
+  app.use('/documentos', express.static(UPLOAD_BASE_PATH + '/documentos', {
+    setHeaders: (res) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-
-      if (filePath.includes('temp')) {
-        res.setHeader('Cache-Control', 'no-store');
-      } else {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-      }
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+      res.setHeader('X-Frame-Options', 'ALLOWALL');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range');
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
     }
   }));
 };
