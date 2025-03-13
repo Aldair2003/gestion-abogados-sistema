@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import userRoutes from './routes/userRoutes';
 import cantonRoutes from './routes/cantonRoutes';
 import personaRoutes from './routes/personaRoutes';
+import juezRoutes from './routes/juezRoutes';
 import { prisma } from './lib/prisma';
 import { setupSwagger } from './swagger';
 import permissionRoutes from './routes/permissionRoutes';
@@ -48,6 +49,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/cantones', cantonRoutes);
 app.use('/api/personas', personaRoutes);
+app.use('/api/jueces', juezRoutes);
 
 // Ruta de prueba para email
 app.post('/test-email', async (_req: Request, res: Response) => {
