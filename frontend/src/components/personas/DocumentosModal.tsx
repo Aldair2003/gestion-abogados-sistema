@@ -175,18 +175,18 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       
       let url = document.url;
       
-      // Si es una URL de Cloudinary, agregar parámetros para permitir la visualización
+      // Si es una URL de Cloudinary
       if (url.includes('cloudinary.com')) {
         // Remover cualquier parámetro existente
         url = url.split('?')[0];
         
-        // Agregar parámetros para el visor de PDF
-        url = `${url}?secure=true&download=false`;
-        
-        // Si es un PDF, usar el visor de Cloudinary
-        if (document.mimetype === 'application/pdf') {
-          url = url.replace('/upload/', '/upload/fl_attachment/');
-        }
+        // Agregar parámetros para visualización segura
+        const params = new URLSearchParams({
+          secure: 'true',
+          _: Date.now().toString(), // Prevenir cache
+        });
+
+        url = `${url}?${params.toString()}`;
       } else {
         // Para URLs locales
         const baseUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3000';

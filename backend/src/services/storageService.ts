@@ -44,10 +44,19 @@ export class StorageService {
       throw new Error('Cloudinary no está configurado');
     }
     
-    const result = await this.cloudinary.uploader.upload(file.path, {
+    const uploadOptions = {
       folder: folder,
-      resource_type: 'auto'
-    });
+      resource_type: file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+      format: file.mimetype === 'application/pdf' ? 'pdf' : undefined,
+      flags: 'attachment'
+    };
+
+    const result = await this.cloudinary.uploader.upload(file.path, uploadOptions);
+
+    // Para PDFs, agregar parámetros de visualización
+    if (file.mimetype === 'application/pdf') {
+      return `${result.secure_url}?secure=true`;
+    }
 
     return result.secure_url;
   }
