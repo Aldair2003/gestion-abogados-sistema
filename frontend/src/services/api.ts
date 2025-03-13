@@ -6,7 +6,7 @@ console.log('API URL:', API_URL);
 
 // Crear instancia de axios con la configuración base
 const api = axios.create({
-  baseURL: API_URL.replace(/\/$/, ''), // Remover slash final si existe
+  baseURL: API_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -14,19 +14,13 @@ const api = axios.create({
   }
 });
 
-// Interceptor para agregar el token de autenticación y el prefijo /api
+// Interceptor para agregar el token de autenticación
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    // Asegurarse de que todas las rutas empiecen con /api
-    if (!config.url?.startsWith('/api')) {
-      config.url = `/api${config.url}`;
-    }
-
     console.log('Enviando petición:', {
       url: config.url,
       method: config.method,
