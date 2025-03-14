@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma';
-import { storageService } from '../services/storageService';
+import { StorageService } from '../services/storageService';
 import fs from 'fs';
 import path from 'path';
 import { UPLOAD_BASE_PATH } from '../config/storage';
@@ -27,14 +27,15 @@ async function migrateImages() {
         const localPath = path.join(UPLOAD_BASE_PATH, user.photoUrl.replace(/^\//, ''));
         
         if (fs.existsSync(localPath)) {
-          // Crear un objeto File simulado para storageService
+          // Crear un objeto File simulado para StorageService
           const file = {
             path: localPath,
-            originalname: path.basename(localPath)
+            originalname: path.basename(localPath),
+            buffer: await fs.promises.readFile(localPath)
           } as Express.Multer.File;
 
           // Subir a Cloudinary usando el método público saveFile
-          const cloudinaryUrl = await storageService.saveFile(file, 'profile-photos');
+          const cloudinaryUrl = await StorageService.saveFile(file, 'profile-photos');
           
           // Actualizar la URL en la base de datos
           await prisma.user.update({
@@ -72,10 +73,11 @@ async function migrateImages() {
         if (fs.existsSync(localPath)) {
           const file = {
             path: localPath,
-            originalname: path.basename(localPath)
+            originalname: path.basename(localPath),
+            buffer: await fs.promises.readFile(localPath)
           } as Express.Multer.File;
 
-          const cloudinaryUrl = await storageService.saveFile(file, 'cantones');
+          const cloudinaryUrl = await StorageService.saveFile(file, 'cantones');
           
           await prisma.canton.update({
             where: { id: canton.id },
