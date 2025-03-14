@@ -39,7 +39,7 @@ async function migrateImages() {
           // Actualizar la URL en la base de datos
           await prisma.user.update({
             where: { id: user.id },
-            data: { photoUrl: cloudinaryUrl }
+            data: { photoUrl: cloudinaryUrl.url }
           });
 
           console.log(`Migrada foto de perfil para usuario ${user.id}`);
@@ -79,7 +79,7 @@ async function migrateImages() {
           
           await prisma.canton.update({
             where: { id: canton.id },
-            data: { imagenUrl: cloudinaryUrl }
+            data: { imagenUrl: cloudinaryUrl.url }
           });
 
           console.log(`Migrada imagen para cantón ${canton.id}`);

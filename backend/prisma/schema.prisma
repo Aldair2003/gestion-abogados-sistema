@@ -213,6 +213,7 @@ model Documento {
   id          Int           @id @default(autoincrement())
   tipo        TipoDocumento
   url         String
+  driveFileId String?      // ID del archivo en Google Drive
   filename    String        // Nombre original del archivo
   mimetype    String        // Tipo MIME del archivo
   size        Int          // Tamaño en bytes

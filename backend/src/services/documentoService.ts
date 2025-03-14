@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { TipoDocumento } from '@prisma/client';
 import { CustomError } from '../utils/customError';
 import { ApiErrorCode } from '../types/apiError';
-import { storageService } from './storageService';
+import { StorageService } from './storageService';
 
 const DOCUMENTOS_OBLIGATORIOS = [
   TipoDocumento.CEDULA,
@@ -18,12 +18,25 @@ export class DocumentoService {
     userId: number
   ) {
     try {
+      console.log('=== Iniciando guardado de documento ===');
+      console.log('Datos recibidos:', {
+        filename: file.originalname,
+        tipo,
+        personaId,
+        userId
+      });
+
       // Validar que la persona existe
       const persona = await prisma.persona.findUnique({
-        where: { id: personaId }
+        where: { id: personaId },
+        select: {
+          id: true,
+          cantonId: true
+        }
       });
 
       if (!persona) {
+        console.error('Persona no encontrada:', personaId);
         throw new CustomError({
           code: ApiErrorCode.NOT_FOUND,
           message: 'Persona no encontrada',
@@ -32,18 +45,27 @@ export class DocumentoService {
         });
       }
 
+      console.log('Persona encontrada:', persona);
+
       // Buscar si ya existe un documento activo del mismo tipo
       const documentoExistente = await prisma.documento.findFirst({
         where: {
           personaId,
           tipo,
           isActive: true
+        },
+        select: {
+          id: true,
+          url: true,
+          driveFileId: true
         }
       });
 
-      // Si existe un documento anterior, lo desactivamos y eliminamos el archivo
       if (documentoExistente) {
-        await this.eliminarArchivoFisico(documentoExistente.url);
+        console.log('Documento existente encontrado:', documentoExistente);
+        console.log('Procediendo a desactivar y eliminar archivo anterior...');
+        
+        await StorageService.deleteFile(documentoExistente.url, documentoExistente.driveFileId || undefined);
         await prisma.documento.update({
           where: { id: documentoExistente.id },
           data: {
@@ -51,49 +73,72 @@ export class DocumentoService {
             updatedBy: userId
           }
         });
+        
+        console.log('Documento anterior desactivado correctamente');
       }
 
-      // Guardar el archivo usando storageService
-      const fileUrl = await storageService.saveFile(file, 'documentos');
+      // Guardar el archivo usando StorageService
+      console.log('Guardando archivo en storage...');
+      const { url: fileUrl, fileId: driveFileId } = await StorageService.saveFile(file, 'documentos');
+      console.log('Archivo guardado exitosamente:', { fileUrl, driveFileId });
 
       // Crear el registro del nuevo documento
+      console.log('Creando registro en base de datos...');
       const documento = await prisma.documento.create({
         data: {
           tipo,
           url: fileUrl,
+          driveFileId,
           filename: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
           personaId,
           createdBy: userId,
           updatedBy: userId
+        },
+        select: {
+          id: true,
+          tipo: true,
+          url: true,
+          driveFileId: true,
+          filename: true,
+          persona: {
+            select: {
+              id: true,
+              cantonId: true
+            }
+          }
         }
       });
 
+      console.log('Documento creado exitosamente:', documento);
+
+      // Registrar la actividad
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          action: 'DOCUMENTO_CREADO',
+          category: 'DOCUMENTO',
+          targetId: documento.id,
+          details: {
+            tipo,
+            personaId,
+            cantonId: persona.cantonId,
+            filename: file.originalname
+          }
+        }
+      });
+
+      console.log('Actividad registrada correctamente');
+
       // Actualizar el estado de documentos completos
       await this.actualizarEstadoDocumentos(personaId);
+      console.log('Estado de documentos actualizado');
 
       return documento;
     } catch (error) {
-      // Si algo falla y existe un archivo temporal, eliminarlo
-      if (file.path) {
-        try {
-          await storageService.deleteFile(file.path);
-        } catch (deleteError) {
-          console.error('Error al eliminar archivo temporal:', deleteError);
-        }
-      }
+      console.error('Error en saveDocumento:', error);
       throw error;
-    }
-  }
-
-  static async eliminarArchivoFisico(fileUrl: string) {
-    try {
-      await storageService.deleteFile(fileUrl);
-      return true;
-    } catch (error) {
-      console.error('Error al eliminar archivo:', error);
-      return false;
     }
   }
 
@@ -108,22 +153,23 @@ export class DocumentoService {
         });
       }
 
-      console.log('Iniciando eliminación de documento:', {
-        documentoId,
-        personaId,
-        userId,
-        parametrosValidos: {
-          documentoId: !isNaN(documentoId),
-          personaId: !isNaN(personaId),
-          userId: !isNaN(userId)
-        }
-      });
-
       const documento = await prisma.documento.findFirst({
         where: {
           id: documentoId,
           personaId: personaId,
           isActive: true
+        },
+        select: {
+          id: true,
+          url: true,
+          driveFileId: true,
+          tipo: true,
+          filename: true,
+          persona: {
+            select: {
+              cantonId: true
+            }
+          }
         }
       });
 
@@ -136,11 +182,14 @@ export class DocumentoService {
         });
       }
 
-      console.log('Documento encontrado:', documento);
-
-      // Intentar eliminar el archivo físico
-      const archivoEliminado = await this.eliminarArchivoFisico(documento.url);
-      console.log('Resultado eliminación física:', archivoEliminado);
+      // Eliminar archivo
+      let archivoEliminado = false;
+      try {
+        await StorageService.deleteFile(documento.url, documento.driveFileId || undefined);
+        archivoEliminado = true;
+      } catch (error) {
+        console.error('Error al eliminar archivo:', error);
+      }
 
       // Desactivar el documento en la base de datos
       const documentoActualizado = await prisma.documento.update({
@@ -151,7 +200,21 @@ export class DocumentoService {
         }
       });
 
-      console.log('Documento desactivado en BD:', documentoActualizado);
+      // Registrar la actividad
+      await prisma.activityLog.create({
+        data: {
+          userId,
+          action: 'DOCUMENTO_ELIMINADO',
+          category: 'DOCUMENTO',
+          targetId: documentoId,
+          details: {
+            tipo: documento.tipo,
+            personaId,
+            cantonId: documento.persona.cantonId,
+            filename: documento.filename
+          }
+        }
+      });
 
       // Actualizar el estado de documentos completos
       await this.actualizarEstadoDocumentos(personaId);
@@ -162,27 +225,15 @@ export class DocumentoService {
         documentoDesactivado: true
       };
     } catch (error) {
-      console.error('Error en eliminarDocumento:', {
-        error,
-        documentoId,
-        personaId,
-        userId,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      
+      console.error('Error en eliminarDocumento:', error);
       if (error instanceof CustomError) {
         throw error;
       }
-      
       throw new CustomError({
         code: ApiErrorCode.INTERNAL_ERROR,
         message: 'Error al eliminar el documento',
         status: 500,
-        details: { 
-          documentoId, 
-          personaId,
-          error: error instanceof Error ? error.message : 'Error desconocido'
-        }
+        details: { documentoId, personaId }
       });
     }
   }

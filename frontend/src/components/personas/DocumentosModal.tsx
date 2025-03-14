@@ -175,23 +175,32 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       
       let url = document.url;
       
-      // Si es una URL de Cloudinary
-      if (url.includes('cloudinary.com')) {
-        // Remover cualquier parámetro existente
-        url = url.split('?')[0];
-        
-        // Para PDFs, usar fl_attachment para forzar la descarga
-        if (document.mimetype === 'application/pdf') {
-          url = `${url}`;
+      // Si es una URL de Google Drive
+      if (url.includes('drive.google.com')) {
+        // Extraer el ID del archivo independientemente del formato de la URL
+        const fileId = url.match(/\/d\/([^/]+)/)?.[1] || 
+                      url.match(/id=([^&]+)/)?.[1];
+                      
+        if (fileId) {
+          // Usar el formato de URL que permite previsualización embebida
+          url = `https://drive.google.com/file/d/${fileId}/preview`;
+          console.log('URL de Google Drive transformada:', url);
+        } else {
+          console.warn('No se pudo extraer el ID del archivo de Google Drive');
         }
-      } else {
-        // Para URLs locales
+      } 
+      // Si es una URL de Cloudinary
+      else if (url.includes('cloudinary.com')) {
+        url = url.split('?')[0];
+      } 
+      // Para URLs locales
+      else {
         const baseUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:3000';
         const documentPath = document.url.replace(/\\/g, '/');
         url = document.url.startsWith('http') ? document.url : `${baseUrl}/${documentPath}`;
       }
       
-      console.log('URL construida para preview:', url);
+      console.log('URL final para preview:', url);
       
       setPreviewUrl(url);
       setSelectedDocument(document);
@@ -220,30 +229,27 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       console.log('=== Iniciando descarga de documento ===');
       console.log('Documento a descargar:', selectedDocument);
       
-      let downloadUrl = previewUrl;
+      let downloadUrl = selectedDocument.url;
       
+      // Si es una URL de Google Drive, convertir a URL de descarga directa
+      if (downloadUrl.includes('drive.google.com')) {
+        const fileId = downloadUrl.match(/\/d\/([^/]+)/)?.[1] || 
+                      downloadUrl.match(/id=([^&]+)/)?.[1];
+        if (fileId) {
+          downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+        }
+      }
       // Si es una URL de Cloudinary, agregar fl_attachment
-      if (downloadUrl.includes('cloudinary.com')) {
+      else if (downloadUrl.includes('cloudinary.com')) {
         downloadUrl = `${downloadUrl}?fl_attachment=true`;
       }
       
       console.log('URL de descarga:', downloadUrl);
 
-      // Realizar la petición fetch para obtener el blob
-      const response = await fetch(downloadUrl);
-      if (!response.ok) {
-        throw new Error(`Error al descargar: ${response.status} ${response.statusText}`);
-      }
-
-      // Convertir la respuesta a blob
-      const blob = await response.blob();
-      
-      // Crear URL del blob
-      const blobUrl = window.URL.createObjectURL(blob);
-      
-      // Crear enlace temporal
+      // Crear enlace temporal y simular clic
       const link = document.createElement('a');
-      link.href = blobUrl;
+      link.href = downloadUrl;
+      link.target = '_self'; // Cambiar a _self para que no abra nueva pestaña
       link.download = selectedDocument.filename || `${getDocumentTypeLabel(selectedDocument.tipo)}.pdf`;
       
       // Agregar el enlace al documento
@@ -252,9 +258,8 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       // Simular clic y limpiar
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
       
-      console.log('Descarga completada exitosamente');
+      console.log('Descarga iniciada exitosamente');
       toast.success('Descarga iniciada');
     } catch (error) {
       console.error('Error detallado al descargar el documento:', error);

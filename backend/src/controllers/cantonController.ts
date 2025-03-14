@@ -64,13 +64,8 @@ export const createCanton = async (
         }
       });
 
-      imagenUrl = await CantonImageService.saveImage(req.file, canton.id, req.user!.id);
-
-      // Actualizar cantón con la URL de la imagen
-      canton = await prisma.canton.update({
-        where: { id: canton.id },
-        data: { imagenUrl }
-      });
+      const updatedCanton = await CantonImageService.uploadImage(canton.id, req.file, req.user!.id);
+      canton = updatedCanton;
     } else {
       canton = await prisma.canton.create({
         data: {
@@ -150,7 +145,8 @@ export const updateCanton = async (
 
     // Procesar nueva imagen si se proporcionó una
     if (req.file) {
-      updateData.imagenUrl = await CantonImageService.updateImage(req.file, Number(id), req.user!.id);
+      const updatedCanton = await CantonImageService.uploadImage(Number(id), req.file, req.user!.id);
+      updateData.imagenUrl = updatedCanton.imagenUrl;
     }
 
     const canton = await prisma.canton.update({

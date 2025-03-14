@@ -16,6 +16,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google-cloud/storage": "^7.15.2",
     "@heroicons/react": "^2.1.5",
     "@prisma/client": "^6.4.1",
     "@types/bcryptjs": "^2.4.6",
@@ -33,6 +34,7 @@
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
+    "googleapis": "^146.0.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",

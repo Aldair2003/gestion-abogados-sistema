@@ -4,6 +4,7 @@ import { authMiddleware, isAdmin, withAuthenticatedHandler } from '../middleware
 import { loginLimiter, registerLimiter } from '../middlewares/rateLimit';
 import upload from '../middlewares/upload';
 import { asyncHandler } from '../types/common';
+import * as profileController from '../controllers/profileController';
 
 const router = Router();
 
@@ -845,9 +846,11 @@ router.get(
 );
 
 // Nueva ruta para obtener el usuario actual
-router.get('/me', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.getUserProfile)));
+router.get('/me', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.getCurrentUser)));
 
-router.put('/me', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.updateUserProfile)));
+router.put('/me/profile', authMiddleware, asyncHandler(withAuthenticatedHandler(profileController.updateUserProfile)));
+
+router.post('/me/photo', authMiddleware, upload.single('photo'), asyncHandler(withAuthenticatedHandler(userController.updateProfilePhoto)));
 
 router.get(
   '/profile/status', 
