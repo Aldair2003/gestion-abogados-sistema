@@ -8,9 +8,12 @@ import {
   assignCantonPermission,
   revokeCantonPermission,
   getPersonaPermissions,
-  assignPersonaPermission,
-  revokePersonaPermission,
-  getPermissionLogs
+  getPermissionLogs,
+  getPersonaPermissionsByCantonAndUser,
+  assignPersonaPermissions,
+  checkPersonaPermissions,
+  updatePersonaPermissions,
+  revokePersonaPermissions
 } from '../controllers/permissionController';
 import { authenticateToken, isAdmin } from '../middlewares/auth';
 
@@ -316,11 +319,18 @@ router.get('/cantones/:cantonId', authenticateToken, isAdmin, withAuth(getPermis
 router.post('/cantones/:cantonId/usuarios/:userId', authenticateToken, isAdmin, withAuth(assignCantonPermission));
 router.delete('/cantones/:cantonId/usuarios/:userId', authenticateToken, isAdmin, withAuth(revokeCantonPermission));
 
-// Permisos de personas - Solo administradores
-router.get('/personas', authenticateToken, isAdmin, withAuth(getPersonaPermissions));
-router.get('/personas/:personaId/usuarios/:userId', authenticateToken, isAdmin, withAuth(getPersonaPermissions));
-router.post('/personas/:personaId/usuarios/:userId', authenticateToken, isAdmin, withAuth(assignPersonaPermission));
-router.delete('/personas/:personaId/usuarios/:userId', authenticateToken, isAdmin, withAuth(revokePersonaPermission));
+// Rutas protegidas que requieren autenticación
+router.use(authenticateToken);
+
+// Rutas de permisos de personas
+router.get('/persona', authenticateToken, withAuth(getPersonaPermissions));
+router.post('/persona/assign', authenticateToken, isAdmin, withAuth(assignPersonaPermissions));
+router.put('/persona/:id', authenticateToken, isAdmin, withAuth(updatePersonaPermissions));
+router.delete('/persona/:id', authenticateToken, isAdmin, withAuth(revokePersonaPermissions));
+
+// Rutas de permisos de personas por cantón
+router.get('/personas/canton/:cantonId', authenticateToken, isAdmin, withAuth(getPersonaPermissionsByCantonAndUser));
+router.get('/personas/:personaId/check', authenticateToken, isAdmin, withAuth(checkPersonaPermissions));
 
 // Historial de permisos - Solo administradores
 router.get('/historial', authenticateToken, isAdmin, withAuth(getPermissionLogs));

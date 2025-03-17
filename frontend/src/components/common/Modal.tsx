@@ -10,6 +10,7 @@ interface ModalProps {
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   preventClose?: boolean;
+  maxWidth?: string;
 }
 
 const sizeClasses = {
@@ -26,13 +27,17 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   children,
   size = 'md',
-  preventClose = false
+  preventClose = false,
+  maxWidth
 }) => {
   const handleClose = () => {
     if (!preventClose) {
       onClose();
     }
   };
+
+  // Usar maxWidth personalizado si se proporciona, de lo contrario usar el tamaño predefinido
+  const widthClass = maxWidth || sizeClasses[size];
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -61,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
               leaveTo="opacity-0 translate-y-4 scale-95"
             >
               <Dialog.Panel 
-                className={`relative w-full ${sizeClasses[size]} transform overflow-hidden rounded-xl bg-white dark:bg-gray-800 px-6 py-4 text-left align-middle shadow-xl transition-all mx-auto border border-gray-200 dark:border-gray-700`}
+                className={`relative w-full ${widthClass} transform overflow-hidden rounded-xl bg-white dark:bg-gray-800 px-6 py-4 text-left align-middle shadow-xl transition-all mx-auto border border-gray-200 dark:border-gray-700`}
                 onClick={(e) => e.stopPropagation()}
               >
                 {title && (

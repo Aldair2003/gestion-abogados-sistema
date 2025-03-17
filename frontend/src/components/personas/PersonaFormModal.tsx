@@ -108,35 +108,47 @@ export const PersonaFormModal: React.FC<PersonaFormModalProps> = ({
     }).join(', ');
   };
 
-  // Observar cambios en el campo de matrículas
+  // Observar cambios en el campo de matrículas solo cuando el usuario edita
   const matriculasValue = watch('matriculasVehiculo');
   useEffect(() => {
-    if (matriculasValue) {
+    // Solo formatear cuando el usuario está editando activamente
+    // y no durante la carga inicial de datos
+    if (matriculasValue && !isSubmitting) {
       const formatted = formatMatriculas(matriculasValue);
       if (formatted !== matriculasValue) {
-        setValue('matriculasVehiculo', formatted);
+        setValue('matriculasVehiculo', formatted, { shouldValidate: false });
       }
     }
-  }, [matriculasValue, setValue]);
+  }, [matriculasValue, setValue, isSubmitting]);
 
-  // Efecto para cargar datos iniciales
+  // Efecto para cargar datos iniciales - solo se ejecuta cuando cambia persona
   useEffect(() => {
     if (persona) {
-      console.log('Actualizando formulario con datos:', persona);
-      setValue('cedula', persona.cedula || '');
-      setValue('nombres', persona.nombres || '');
-      setValue('apellidos', persona.apellidos || '');
-      setValue('telefono', persona.telefono || '');
-      setValue('email', persona.email || '');
-      setValue('domicilio', persona.domicilio || '');
-      setValue('matriculasVehiculo', persona.matriculasVehiculo ? formatMatriculas(persona.matriculasVehiculo.join(', ')) : '');
-      setValue('contactoRef', persona.contactoRef || '');
+      console.log('Cargando datos de persona para edición:', persona);
+      
+      // Usar reset en lugar de múltiples setValue para evitar renderizados múltiples
+      reset({
+        cedula: persona.cedula || '',
+        nombres: persona.nombres || '',
+        apellidos: persona.apellidos || '',
+        telefono: persona.telefono || '',
+        email: persona.email || '',
+        domicilio: persona.domicilio || '',
+        matriculasVehiculo: persona.matriculasVehiculo ? persona.matriculasVehiculo.join(', ') : '',
+        contactoRef: persona.contactoRef || ''
+      });
+      
+      // Si necesitamos formatear las matrículas, hacerlo después del reset
+      if (persona.matriculasVehiculo && persona.matriculasVehiculo.length > 0) {
+        const formattedMatriculas = formatMatriculas(persona.matriculasVehiculo.join(', '));
+        setValue('matriculasVehiculo', formattedMatriculas, { shouldValidate: false });
+      }
     }
-  }, [persona, setValue]);
+  }, [persona, reset, setValue]);
 
   const handleFormSubmit = async (data: FormData) => {
     try {
-      console.log('Datos del formulario:', data);
+      console.log('Enviando datos del formulario:', data);
       
       const formattedValues = {
         ...data,
@@ -148,16 +160,19 @@ export const PersonaFormModal: React.FC<PersonaFormModalProps> = ({
           : []
       };
 
-      console.log('Valores formateados:', formattedValues);
+      console.log('Valores formateados para enviar:', formattedValues);
 
       if (persona) {
+        // Actualizar persona existente
         await personaService.updatePersona(persona.id.toString(), formattedValues);
         toast.success('Persona actualizada exitosamente');
       } else {
+        // Crear nueva persona
         await personaService.createPersona(cantonId, formattedValues);
         toast.success('Persona registrada exitosamente');
       }
       
+      // Limpiar formulario y cerrar modal
       reset();
       onSuccess();
       onClose();
@@ -188,21 +203,6 @@ export const PersonaFormModal: React.FC<PersonaFormModalProps> = ({
       }
     }
   };
-
-  // Mover el console.log aquí, fuera del JSX
-  console.log('PersonaFormModal - Datos recibidos:', { 
-    persona, 
-    defaultValues: {
-      cedula: persona?.cedula || '',
-      nombres: persona?.nombres || '',
-      apellidos: persona?.apellidos || '',
-      telefono: persona?.telefono || '',
-      email: persona?.email || '',
-      domicilio: persona?.domicilio || '',
-      matriculasVehiculo: persona?.matriculasVehiculo?.join(', ') || '',
-      contactoRef: persona?.contactoRef || ''
-    }
-  });
 
   return (
     <Modal

@@ -38,11 +38,13 @@ export interface PaginatedCantonesResponse {
 
 export interface CreateJuezDTO {
   nombre: string;
+  secretario?: string; // Nombre del secretario asociado al juez
   cantones: number[]; // IDs de los cantones
 }
 
 export interface UpdateJuezDTO {
   nombre?: string;
+  secretario?: string; // Nombre del secretario asociado al juez
   cantones?: number[];
   isActive?: boolean;
 }

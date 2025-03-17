@@ -40,8 +40,10 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null);
 
   const isAdmin = user?.rol === 'ADMIN';
-  const isCreador = persona.creadorId?.toString() === user?.id?.toString();
+  const isCreador = persona.creadorId?.toString() === user?.id?.toString() || 
+                    persona.createdBy?.toString() === user?.id?.toString();
   const canUploadDocs = isAdmin || isCreador;
+  const canViewDocs = true;
 
   const loadDocumentos = useCallback(async () => {
     try {
@@ -94,9 +96,10 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
     console.log('Documento a eliminar:', document);
     console.log('Usuario actual:', user);
     console.log('¿Es admin?:', isAdmin);
+    console.log('¿Es creador?:', isCreador);
 
-    if (!isAdmin) {
-      toast.error('Solo los administradores pueden eliminar documentos');
+    if (!isAdmin && !isCreador) {
+      toast.error('Solo los administradores o creadores pueden eliminar documentos');
       return;
     }
 
@@ -309,17 +312,19 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
     if (documento) {
       return (
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => documento && handlePreviewDocument(documento)}
-            className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-              isDarkMode
-                ? 'bg-gray-800 text-white hover:bg-gray-700'
-                : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-            }`}
-          >
-            <DocumentIcon className="h-4 w-4 mr-2" />
-            Ver
-          </button>
+          {canViewDocs && (
+            <button
+              onClick={() => documento && handlePreviewDocument(documento)}
+              className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isDarkMode
+                  ? 'bg-gray-800 text-white hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+              }`}
+            >
+              <DocumentIcon className="h-4 w-4 mr-2" />
+              Ver
+            </button>
+          )}
 
           {canUploadDocs && (
             <>
@@ -343,7 +348,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                 {uploading ? 'Subiendo...' : 'Cambiar'}
               </label>
 
-              {isAdmin && documento && (
+              {(isAdmin || isCreador) && documento && (
                 <button
                   onClick={() => documento && handleDeleteDocument(documento)}
                   className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -616,7 +621,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                                       {uploading ? 'Subiendo...' : 'Cambiar'}
                                     </label>
 
-                                    {isAdmin && docStatus.documento && (
+                                    {(isAdmin || isCreador) && docStatus.documento && (
                                       <button
                                         onClick={() => docStatus.documento && handleDeleteDocument(docStatus.documento)}
                                         className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${

@@ -353,7 +353,7 @@ export const createJuez = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { nombre, cantones } = req.body;
+    const { nombre, secretario, cantones } = req.body;
 
     if (!nombre || !cantones?.length) {
       throw new CustomError({
@@ -391,6 +391,7 @@ export const createJuez = async (
     const juez = await prisma.juez.create({
       data: {
         nombre,
+        secretario,
         createdBy: req.user!.id,
         updatedBy: req.user!.id,
         cantones: {
@@ -437,11 +438,14 @@ export const updateJuez = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { nombre, cantones, isActive } = req.body;
+    const { nombre, secretario, cantones, isActive } = req.body;
 
-    // Verificar que el juez existe
+    // Validar que el juez existe
     const existingJuez = await prisma.juez.findUnique({
-      where: { id: Number(id) }
+      where: { id: Number(id) },
+      include: {
+        cantones: true
+      }
     });
 
     if (!existingJuez) {
@@ -453,44 +457,19 @@ export const updateJuez = async (
       });
     }
 
-    // Si se están actualizando los cantones, verificar que existan
-    if (cantones?.length) {
-      const existingCantones = await prisma.canton.findMany({
-        where: {
-          id: {
-            in: cantones
-          }
-        }
-      });
+    // Preparar datos de actualización
+    const updateData: any = {
+      updatedBy: req.user!.id
+    };
 
-      if (existingCantones.length !== cantones.length) {
-        const missingCantones = cantones.filter(
-          (id: number) => !existingCantones.find(canton => canton.id === id)
-        );
-        throw new CustomError({
-          code: ApiErrorCode.NOT_FOUND,
-          message: 'Algunos cantones no existen',
-          status: 404,
-          details: { cantones: missingCantones }
-        });
-      }
-    }
+    if (nombre !== undefined) updateData.nombre = nombre;
+    if (secretario !== undefined) updateData.secretario = secretario;
+    if (isActive !== undefined) updateData.isActive = isActive;
 
-    const juez = await prisma.juez.update({
+    // Actualizar juez
+    const updatedJuez = await prisma.juez.update({
       where: { id: Number(id) },
-      data: {
-        ...(nombre && { nombre }),
-        ...(isActive !== undefined && { isActive }),
-        updatedBy: req.user!.id,
-        ...(cantones && {
-          cantones: {
-            deleteMany: {},
-            create: cantones.map((cantonId: number) => ({
-              canton: { connect: { id: cantonId } }
-            }))
-          }
-        })
-      },
+      data: updateData,
       include: {
         cantones: {
           include: {
@@ -502,19 +481,19 @@ export const updateJuez = async (
 
     await logActivity(req.user!.id, 'UPDATE_JUEZ', {
       category: ActivityCategory.JUEZ,
-      targetId: juez.id,
+      targetId: updatedJuez.id,
       details: {
         description: 'Juez actualizado exitosamente',
         metadata: {
-          juezNombre: juez.nombre,
-          cantones: juez.cantones.map(c => c.canton.nombre)
+          juezNombre: updatedJuez.nombre,
+          cantones: updatedJuez.cantones.map(c => c.canton.nombre)
         }
       }
     });
 
     res.json({
       status: 'success',
-      data: juez
+      data: updatedJuez
     });
   } catch (error) {
     next(error);
@@ -874,6 +853,7 @@ export const getJuecesByCanton = async (
     const jueces = juecesDelCanton.map(jc => ({
       id: jc.juez.id,
       nombre: jc.juez.nombre,
+      secretario: jc.juez.secretario,
       isActive: jc.juez.isActive,
       createdAt: jc.createdAt,
       cantones: jc.juez.cantones
@@ -890,13 +870,13 @@ export const getJuecesByCanton = async (
 
 // Agregar un juez a un cantón
 export const createJuezInCanton = async (
-  req: AuthenticatedRequest & { params: { id: string }; body: { nombre: string; cantones: number[] } },
+  req: AuthenticatedRequest & { params: { id: string }; body: { nombre: string; secretario?: string; cantones: number[] } },
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { nombre, cantones = [] } = req.body;
+    const { nombre, secretario, cantones = [] } = req.body;
 
     if (!nombre) {
       throw new CustomError({
@@ -937,6 +917,7 @@ export const createJuezInCanton = async (
     const juez = await prisma.juez.create({
       data: {
         nombre,
+        secretario,
         createdBy: req.user!.id,
         updatedBy: req.user!.id,
         cantones: {

@@ -161,6 +161,7 @@ model Canton {
 model Juez {
   id        Int           @id @default(autoincrement())
   nombre    String
+  secretario String?      // Nombre del secretario asociado al juez
   cantones  JuezCanton[]
   isActive  Boolean       @default(true)
   createdAt DateTime      @default(now())

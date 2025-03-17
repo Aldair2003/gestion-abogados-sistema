@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Modal } from '../../common/Modal';
 import { SelectField } from '../../common/SelectField';
 import { User, CantonPermissionData, PersonaPermissionData } from '../../../types/permissions';
@@ -33,6 +33,29 @@ export const AssignPermissionModal = ({
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
 
   const resourcesList = Array.isArray(resources) ? resources : [];
+  
+  // Filtrar usuarios según el tipo de permiso
+  const filteredUsers = useMemo(() => {
+    if (!Array.isArray(users)) return [];
+    
+    if (type === 'canton') {
+      // Para permisos de cantones, mostrar solo usuarios SIN cantones asignados
+      return users.filter(user => 
+        user && 
+        (!user.cantones || 
+         !Array.isArray(user.cantones) || 
+         user.cantones.length === 0)
+      );
+    } else {
+      // Para permisos de personas, mostrar solo usuarios CON cantones asignados
+      return users.filter(user => 
+        user && 
+        user.cantones && 
+        Array.isArray(user.cantones) && 
+        user.cantones.length > 0
+      );
+    }
+  }, [users, type]);
   
   // Asegurarse de que los recursos tengan el formato correcto
   const resourceOptions = resourcesList.map(resource => ({
@@ -169,12 +192,31 @@ export const AssignPermissionModal = ({
               className="w-full"
             >
               <option value="">Seleccione un colaborador</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.nombre}
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  user && (
+                    <option key={user.id} value={user.id}>
+                      {user.nombre || user.email} {type === 'persona' && user.cantones && Array.isArray(user.cantones) && user.cantones.length > 0 
+                        ? `- (${user.cantones.map(c => c?.nombre || '').filter(Boolean).join(', ')})` 
+                        : ''}
+                    </option>
+                  )
+                ))
+              ) : (
+                <option value="" disabled>
+                  {type === 'canton' 
+                    ? 'No hay colaboradores sin cantones asignados' 
+                    : 'No hay colaboradores con cantones asignados'}
                 </option>
-              ))}
+              )}
             </SelectField>
+            {filteredUsers.length === 0 && (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                {type === 'canton' 
+                  ? 'No hay colaboradores sin cantones asignados. Todos los colaboradores ya tienen cantones asignados.' 
+                  : 'No hay colaboradores con cantones asignados. Primero debe asignar cantones a los colaboradores.'}
+              </p>
+            )}
           </div>
 
           {/* Selector de Cantones con React Select */}

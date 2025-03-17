@@ -300,55 +300,61 @@ export const ProfilePage = () => {
                      hover:shadow-2xl hover:bg-white/80 dark:hover:bg-[#172133]/95
                      transition-all duration-300
                      ${!isEditing ? 'pb-8 sm:pb-12 mb-4 sm:mb-8' : 'pb-12 sm:pb-16 mb-16 sm:mb-24'}`}>
-          <div className="absolute top-3 sm:top-6 md:top-8 right-3 sm:right-6 md:right-8 flex flex-col sm:flex-row gap-2 w-full sm:w-auto px-3 sm:px-0">
-            {isEditing && (
+          <div className="absolute top-0 left-0 right-0 flex flex-row justify-between items-center w-full p-3 sm:p-0 sm:static sm:top-auto sm:right-auto sm:flex-row sm:gap-2 sm:w-auto sm:px-0">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleCancel}
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium
+                           text-gray-700 dark:text-gray-200 
+                           bg-gray-100 dark:bg-gray-800
+                           hover:bg-gray-200 dark:hover:bg-gray-700
+                           border border-gray-200/50 dark:border-gray-700/50
+                           shadow-sm transition-all duration-200 w-auto"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                  <span>Cancelar</span>
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium
+                           text-white bg-primary-500 hover:bg-primary-600 
+                           border border-primary-400
+                           shadow-sm transition-all duration-200 w-auto
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="h-4 w-4" />
+                      <span>Guardar</span>
+                    </>
+                  )}
+                </motion.button>
+              </>
+            ) : (
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleCancel}
-                className="inline-flex items-center justify-center gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setIsEditing(true)}
+                className="ml-auto flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-xs font-medium
                          text-gray-700 dark:text-gray-200 
-                         bg-gray-100 dark:bg-gray-800
-                         hover:bg-gray-200 dark:hover:bg-gray-700
+                         bg-white dark:bg-[#1d2842] 
+                         hover:bg-gray-50 dark:hover:bg-[#1d2842]/80 
                          border border-gray-200/50 dark:border-gray-700/50
-                         shadow-lg shadow-gray-200/20 dark:shadow-none
-                         transition-all duration-200 w-full sm:w-auto"
+                         shadow-sm transition-all duration-200 w-auto"
               >
-                <XMarkIcon className="h-4 w-4" />
-                <span>Cancelar</span>
+                <PencilIcon className="h-4 w-4" />
+                <span>Editar</span>
               </motion.button>
             )}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={isEditing ? handleSubmit : () => setIsEditing(true)}
-              disabled={loading}
-              className={`inline-flex items-center justify-center gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium w-full sm:w-auto
-                       ${isEditing 
-                         ? 'text-white bg-primary-500 hover:bg-primary-600 border-primary-400'
-                         : 'text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1d2842] hover:bg-gray-50 dark:hover:bg-[#1d2842]/80 border-gray-200/50 dark:border-gray-700/50'
-                       }
-                       border shadow-lg shadow-primary-500/20 dark:shadow-none
-                       transition-all duration-200
-                       disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span>Guardando...</span>
-                </>
-              ) : isEditing ? (
-                <>
-                  <CheckCircleIcon className="h-4 w-4" />
-                  <span>Guardar cambios</span>
-                </>
-              ) : (
-                <>
-                  <PencilIcon className="h-4 w-4" />
-                  <span>Editar perfil</span>
-                </>
-              )}
-            </motion.button>
           </div>
 
           {/* Información principal */}

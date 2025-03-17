@@ -29,15 +29,15 @@ const DetailItem = ({ icon: Icon, label, value, className = '' }: {
   value: string | null | undefined;
   className?: string;
 }) => (
-  <div className={`flex items-center p-4 rounded-lg transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${className}`}>
+  <div className={`flex items-center p-3 sm:p-4 rounded-lg transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 ${className}`}>
     <div className="flex-shrink-0">
-      <Icon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+      <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 dark:text-gray-500" />
     </div>
-    <div className="min-w-0 flex-1 ml-4">
+    <div className="min-w-0 flex-1 ml-3 sm:ml-4">
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
         {label}
       </p>
-      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate mt-1.5">
+      <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate mt-1">
         {value || 'No especificado'}
       </p>
     </div>
@@ -45,10 +45,10 @@ const DetailItem = ({ icon: Icon, label, value, className = '' }: {
 );
 
 const StatCard = ({ title, value, color }: { title: string; value: string | number; color: string }) => (
-  <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${color} p-5 shadow-sm`}>
+  <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${color} p-3 sm:p-5 shadow-sm`}>
     <div className="relative z-10">
-      <div className="text-sm font-medium text-white/90 mb-1.5">{title}</div>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-xs sm:text-sm font-medium text-white/90 mb-1">{title}</div>
+      <div className="text-lg sm:text-2xl font-bold text-white">{value}</div>
     </div>
     <div className="absolute inset-0 bg-white/5 rounded-lg backdrop-blur-[1px]" />
   </div>
@@ -79,7 +79,7 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
       onClose={onClose}
       className="fixed inset-0 z-[9999]"
     >
-      <div className="flex items-center justify-center min-h-screen p-4">
+      <div className="flex items-start justify-center min-h-screen p-2 sm:p-4 overflow-y-auto">
         <Dialog.Overlay className="fixed inset-0 bg-black/40 backdrop-blur-sm" />
         
         {selectedActivity ? (
@@ -90,11 +90,11 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
             />
           </div>
         ) : (
-          <div className="relative bg-white dark:bg-gray-900 w-full max-w-7xl rounded-xl shadow-2xl h-[90vh] flex flex-col">
+          <div className="relative bg-white dark:bg-gray-900 w-full max-w-7xl rounded-xl shadow-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 dark:border-gray-800">
-              <div className="flex items-center gap-5">
-                <div className="relative h-12 w-12 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
+            <div className="flex justify-between items-center px-4 sm:px-8 py-3 sm:py-5 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-900 z-10">
+              <div className="flex items-center gap-3 sm:gap-5">
+                <div className="relative h-10 w-10 sm:h-12 sm:w-12 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
                               ring-2 ring-primary-500/20 dark:ring-primary-500/30">
                   {(() => {
                     return user.photoUrl && !imageError ? (
@@ -106,7 +106,7 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center bg-[#4F46E5] text-white font-medium">
-                        <span className="text-lg">
+                        <span className="text-base sm:text-lg">
                           {(user.nombre?.trim() || user.email?.trim() || '?').charAt(0).toUpperCase()}
                         </span>
                       </div>
@@ -114,24 +114,24 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
                   })()}
                 </div>
                 <div>
-                  <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <Dialog.Title className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                     {user.nombre || 'Usuario'}
                   </Dialog.Title>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1">
                     {user.email}
                   </p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="rounded-lg p-2.5 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="rounded-lg p-2 sm:p-2.5 text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
-                <XMarkIcon className="h-6 w-6" />
+                <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6" />
               </button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {loading ? (
                 <div className="flex justify-center items-center h-full">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
@@ -141,11 +141,11 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
                   <p className="text-gray-500 dark:text-gray-400">No se encontró información del usuario</p>
                 </div>
               ) : (
-                <div className="flex gap-8 p-8 h-full">
+                <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8 p-4 sm:p-6 lg:p-8 h-full">
                   {/* Left panel */}
-                  <div className="w-[380px] flex-shrink-0 flex flex-col min-h-0">
+                  <div className="w-full lg:w-[380px] flex-shrink-0 flex flex-col min-h-0">
                     {/* Stats */}
-                    <div className="grid grid-cols-2 gap-5 mb-6">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-5 mb-4 sm:mb-6">
                       <StatCard 
                         title="Actividades"
                         value={user.activityLogs?.length || 0}
@@ -160,12 +160,12 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
 
                     {/* Scrollable section */}
                     <div className="flex-1 overflow-y-auto min-h-0 scrollbar-hide">
-                      <div className="flex flex-col gap-6">
+                      <div className="flex flex-col gap-4 sm:gap-6">
                         {/* Personal Info */}
                         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden">
-                          <div className="px-5 py-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-3">
-                              <UserIcon className="h-5 w-5 text-gray-400" />
+                          <div className="px-3 sm:px-5 py-3 sm:py-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
+                              <UserIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                               Información Personal
                             </h3>
                           </div>
@@ -195,9 +195,9 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
 
                         {/* Professional Info */}
                         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg overflow-hidden">
-                          <div className="px-5 py-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-3">
-                              <AcademicCapIcon className="h-5 w-5 text-gray-400" />
+                          <div className="px-3 sm:px-5 py-3 sm:py-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
+                              <AcademicCapIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                               Información Profesional
                             </h3>
                           </div>
@@ -225,14 +225,14 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
                   
                   {/* Right panel - Activities */}
                   <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex flex-col min-h-0">
-                    <div className="px-5 py-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-3">
-                        <ClockIcon className="h-5 w-5 text-gray-400" />
+                    <div className="px-3 sm:px-5 py-3 sm:py-4 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                      <h3 className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
+                        <ClockIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                         Actividades Recientes
                       </h3>
                     </div>
                     <div className="flex-1 overflow-y-auto min-h-0 scrollbar-hide">
-                      <div className="p-5">
+                      <div className="p-3 sm:p-5">
                         {user.activityLogs && user.activityLogs.length > 0 ? (
                           <EnhancedActivityList
                             activities={user.activityLogs}
@@ -240,9 +240,9 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
                             className="w-full"
                           />
                         ) : (
-                          <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                            <ClockIcon className="h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex flex-col items-center justify-center h-full text-center py-6 sm:py-8">
+                            <ClockIcon className="h-10 w-10 sm:h-12 sm:w-12 text-gray-300 dark:text-gray-600 mb-2 sm:mb-3" />
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                               No hay actividades registradas
                             </p>
                           </div>

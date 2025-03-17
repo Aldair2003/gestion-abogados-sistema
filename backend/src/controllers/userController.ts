@@ -2291,10 +2291,7 @@ export const getCollaborators = async (_req: Request, res: Response): Promise<vo
     const collaborators = await prisma.user.findMany({
       where: {
         rol: 'COLABORADOR',
-        isActive: true,
-        nombre: {
-          not: null
-        }
+        isActive: true
       },
       select: {
         id: true,
@@ -2303,29 +2300,36 @@ export const getCollaborators = async (_req: Request, res: Response): Promise<vo
         rol: true,
         cedula: true,
         telefono: true,
-        isProfileCompleted: true
+        isProfileCompleted: true,
+        cantonPermissions: {
+          include: {
+            canton: {
+              select: {
+                id: true,
+                nombre: true,
+                codigo: true
+              }
+            }
+          }
+        }
       }
     });
     
-    // Filtrar solo los usuarios que tienen perfil completo
-    const activeCollaborators = collaborators.filter((u: {
-      id: number;
-      nombre: string | null;
-      email: string;
-      cedula: string | null;
-      telefono: string | null;
-      rol: UserRole;
-      isProfileCompleted: boolean;
-    }) => 
-      u.isProfileCompleted && 
-      u.nombre && 
-      u.cedula && 
-      u.telefono
-    );
+    // Transformar los datos para incluir los cantones asignados
+    const formattedCollaborators = collaborators.map(user => ({
+      id: user.id,
+      nombre: user.nombre || `Usuario ${user.email}`, // Usar email si no hay nombre
+      email: user.email,
+      cedula: user.cedula,
+      telefono: user.telefono,
+      rol: user.rol,
+      isProfileCompleted: user.isProfileCompleted,
+      cantones: user.cantonPermissions.map(cp => cp.canton)
+    }));
 
     res.json({
       status: 'success',
-      data: activeCollaborators
+      data: formattedCollaborators
     });
   } catch (error) {
     res.status(500).json({

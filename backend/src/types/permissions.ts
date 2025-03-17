@@ -100,4 +100,33 @@ export interface PermissionResponse {
     message: string;
     details?: string;
   };
+}
+
+export interface AssignPersonaPermissionRequest {
+  userId: number;
+  cantonId: number;
+  personaIds: number[];
+  permissions: {
+    canView: boolean;
+    canCreate?: boolean;
+    canEdit?: boolean;
+  };
+}
+
+export interface PersonaPermissionResponse {
+  id: number;
+  userId: number;
+  personaId: number;
+  cantonId: number;
+  canView: boolean;
+  canCreate: boolean;
+  canEdit: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  persona: {
+    id: number;
+    cedula: string;
+    nombres: string;
+    apellidos: string;
+  };
 } 

@@ -1,5 +1,7 @@
 import api from './api';
 import { toast } from 'react-hot-toast';
+import { permissionService } from './permissionService';
+import { PersonaPermission } from '../types/permissions';
 
 export interface Persona {
   id: number;
@@ -13,6 +15,7 @@ export interface Persona {
   matriculasVehiculo?: string[];
   documentosCompletos: boolean;
   creadorId?: number;
+  createdBy?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -418,29 +421,241 @@ class PersonaService {
         }
       });
 
-      const url = `/personas/canton/${cantonId}/personas${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      console.log('URL construida:', url);
-      console.log('URL completa:', api.defaults.baseURL + url);
-      
-      const response = await api.get(url);
-      console.log('Respuesta del servidor:', response.data);
+      // Obtener información del usuario directamente desde la API
+      try {
+        console.log('Obteniendo información del usuario actual...');
+        const userResponse = await api.get('/users/me');
+        const userInfo = userResponse.data;
+        const isAdmin = userInfo?.rol === 'ADMIN';
+        
+        console.log('=== INFO USUARIO ===');
+        console.log('Usuario actual:', userInfo);
+        console.log('¿Es administrador?:', isAdmin);
+        console.log('Rol del usuario:', userInfo?.rol);
 
-      // Aplicar filtro documental en el cliente
-      if (response.data?.status === 'success' && response.data?.data?.personas && params.documentalFilter) {
-        const personas = response.data.data.personas;
-        response.data.data.personas = personas.filter((persona: Persona) => {
-          if (params.documentalFilter === 'complete') {
-            return persona.documentosCompletos === true;
-          } else if (params.documentalFilter === 'incomplete') {
-            return persona.documentosCompletos === false;
+        // Si es administrador, obtener directamente todas las personas del cantón
+        if (isAdmin) {
+          console.log('Usuario es administrador, obteniendo todas las personas del cantón directamente');
+          const url = `/personas/canton/${cantonId}/personas${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+          console.log('URL construida para admin:', url);
+          
+          try {
+            console.log('Realizando petición directa para admin...');
+            const response = await api.get(url);
+            console.log('Respuesta del servidor para admin:', response.data);
+            console.log('Status de la respuesta:', response.status);
+            console.log('Personas obtenidas para admin:', response.data?.data?.personas?.length || 0);
+
+            // Verificar si las personas tienen los campos creadorId y createdBy
+            if (response.data?.data?.personas) {
+              console.log('=== VERIFICACIÓN DE CAMPOS DE CREADOR ===');
+              response.data.data.personas.forEach((persona: Persona) => {
+                console.log(`Persona ${persona.id} - creadorId: ${persona.creadorId}, createdBy: ${persona.createdBy}`);
+              });
+            }
+
+            // Aplicar filtro documental en el cliente
+            if (response.data?.status === 'success' && response.data?.data?.personas && params.documentalFilter) {
+              const personas = response.data.data.personas;
+              console.log('Aplicando filtro documental:', params.documentalFilter);
+              console.log('Personas antes del filtro:', personas.length);
+              
+              response.data.data.personas = personas.filter((persona: Persona) => {
+                if (params.documentalFilter === 'complete') {
+                  return persona.documentosCompletos === true;
+                } else if (params.documentalFilter === 'incomplete') {
+                  return persona.documentosCompletos === false;
+                }
+                return true;
+              });
+              
+              console.log('Personas después del filtro:', response.data.data.personas.length);
+            }
+            
+            console.log('=== Fin getPersonasByCanton (admin) ===');
+            return response.data;
+          } catch (directError: any) {
+            console.error('Error al obtener personas directamente (admin):', directError);
+            console.error('Detalles del error:', directError.response?.data || directError.message);
+            console.error('Status del error:', directError.response?.status);
+            throw directError;
           }
-          return true;
-        });
+        }
+
+        // Para usuarios no administradores, primero intentamos obtener las personas a través de los permisos
+        try {
+          console.log('Intentando obtener personas a través de permisos...');
+          
+          // Obtener los permisos de personas del usuario
+          const personaPermissionsResponse = await permissionService.getPersonaPermissions();
+          console.log('Permisos de personas obtenidos:', personaPermissionsResponse);
+          console.log('Cantidad de permisos:', personaPermissionsResponse.length);
+          
+          // Filtrar las personas que pertenecen al cantón solicitado
+          const personasInCanton = personaPermissionsResponse
+            .filter((permission: PersonaPermission) => {
+              const matchesCanton = permission.persona && permission.persona.cantonId === cantonId;
+              console.log(`Permiso para persona ${permission.persona?.id} - ¿Pertenece al cantón ${cantonId}?:`, matchesCanton);
+              return matchesCanton;
+            })
+            .map((permission: PersonaPermission) => {
+              // Mapear la persona del permiso al formato esperado por PersonaService
+              const persona = permission.persona;
+              console.log(`Mapeando persona ${persona.id} del cantón ${persona.cantonId}`);
+              return {
+                id: Number(persona.id),
+                cedula: persona.cedula || '',
+                nombres: persona.nombre.split(' ')[0] || '',
+                apellidos: persona.nombre.split(' ').slice(1).join(' ') || '',
+                telefono: '',
+                email: '',
+                domicilio: '',
+                matriculasVehiculo: [],
+                documentosCompletos: false,
+                createdAt: permission.updatedAt,
+                updatedAt: permission.updatedAt,
+                cantonId: Number(persona.cantonId),
+                canton: {
+                  id: Number(persona.canton.id),
+                  nombre: persona.canton.nombre
+                }
+              };
+            });
+          
+          console.log('Personas filtradas por cantón:', personasInCanton.length);
+          
+          // Obtener los datos completos de cada persona
+          console.log('Obteniendo datos completos de cada persona...');
+          const personasCompletas = await Promise.all(
+            personasInCanton.map(async (persona) => {
+              try {
+                console.log(`Obteniendo datos completos para persona ${persona.id}...`);
+                // Intentar obtener los datos completos de la persona
+                const response = await api.get(`/personas/${persona.id}`);
+                if (response.data?.status === 'success' && response.data?.data) {
+                  console.log(`Datos completos obtenidos para persona ${persona.id}`);
+                  // Verificar si la persona tiene los campos creadorId y createdBy
+                  console.log(`Persona ${persona.id} - creadorId: ${response.data.data.creadorId}, createdBy: ${response.data.data.createdBy}`);
+                  
+                  // Si se obtienen los datos completos, usarlos
+                  return {
+                    ...response.data.data,
+                    id: Number(response.data.data.id),
+                    cantonId: Number(response.data.data.cantonId),
+                    canton: {
+                      id: Number(response.data.data.canton?.id || persona.canton.id),
+                      nombre: response.data.data.canton?.nombre || persona.canton.nombre
+                    }
+                  };
+                }
+                console.log(`No se obtuvieron datos completos para persona ${persona.id}, usando datos básicos`);
+                return persona;
+              } catch (error) {
+                console.error(`Error al obtener datos completos de persona ${persona.id}:`, error);
+                return persona;
+              }
+            })
+          );
+          
+          console.log('Personas completas obtenidas:', personasCompletas.length);
+          console.log('Detalles de personas completas:', personasCompletas);
+          
+          // Verificar si las personas tienen los campos creadorId y createdBy
+          console.log('=== VERIFICACIÓN DE CAMPOS DE CREADOR ===');
+          personasCompletas.forEach((persona: Persona) => {
+            console.log(`Persona ${persona.id} - creadorId: ${persona.creadorId}, createdBy: ${persona.createdBy}`);
+          });
+          
+          // Crear una respuesta con el formato esperado
+          const responseData = {
+            status: 'success',
+            data: {
+              personas: personasCompletas || [],
+              stats: {
+                totalDocumentos: 0,
+                promedioDocumentosPorPersona: 0
+              },
+              pagination: {
+                total: personasCompletas.length,
+                pages: 1,
+                page: 1,
+                limit: personasCompletas.length,
+                hasMore: false
+              }
+            }
+          };
+          
+          console.log('=== Fin getPersonasByCanton (permisos) ===');
+          return responseData;
+        } catch (permissionsError) {
+          console.error('Error al obtener personas a través de permisos:', permissionsError);
+          
+          // Si falla el método de permisos, intentamos el método directo
+          console.log('Intentando obtener personas directamente...');
+          const url = `/personas/canton/${cantonId}/personas${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+          console.log('URL construida para método directo:', url);
+          
+          try {
+            console.log('Realizando petición directa...');
+            const response = await api.get(url);
+            console.log('Respuesta del servidor (método directo):', response.data);
+            console.log('Status de la respuesta:', response.status);
+            console.log('Personas obtenidas (método directo):', response.data?.data?.personas?.length || 0);
+
+            // Verificar si las personas tienen los campos creadorId y createdBy
+            if (response.data?.data?.personas) {
+              console.log('=== VERIFICACIÓN DE CAMPOS DE CREADOR ===');
+              response.data.data.personas.forEach((persona: Persona) => {
+                console.log(`Persona ${persona.id} - creadorId: ${persona.creadorId}, createdBy: ${persona.createdBy}`);
+              });
+            }
+
+            // Aplicar filtro documental en el cliente
+            if (response.data?.status === 'success' && response.data?.data?.personas && params.documentalFilter) {
+              const personas = response.data.data.personas;
+              console.log('Aplicando filtro documental:', params.documentalFilter);
+              console.log('Personas antes del filtro:', personas.length);
+              
+              response.data.data.personas = personas.filter((persona: Persona) => {
+                if (params.documentalFilter === 'complete') {
+                  return persona.documentosCompletos === true;
+                } else if (params.documentalFilter === 'incomplete') {
+                  return persona.documentosCompletos === false;
+                }
+                return true;
+              });
+              
+              console.log('Personas después del filtro:', response.data.data.personas.length);
+            }
+            
+            console.log('=== Fin getPersonasByCanton (método directo) ===');
+            return response.data;
+          } catch (directError: any) {
+            console.error('Error al obtener personas directamente:', directError);
+            console.error('Detalles del error:', directError.response?.data || directError.message);
+            console.error('Status del error:', directError.response?.status);
+            throw directError;
+          }
+        }
+      } catch (userError) {
+        console.error('Error al obtener información del usuario:', userError);
+        // Si falla la obtención del usuario, intentar el método directo como fallback
+        console.log('Fallback: Intentando obtener personas directamente...');
+        const url = `/personas/canton/${cantonId}/personas${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+        
+        try {
+          const response = await api.get(url);
+          return response.data;
+        } catch (directError: any) {
+          console.error('Error en fallback:', directError);
+          throw directError;
+        }
       }
-      
-      return response.data;
     } catch (error: any) {
-      console.error('Error al obtener personas:', error);
+      console.error('Error general en getPersonasByCanton:', error);
+      console.error('Mensaje de error:', error.message);
+      console.error('Stack de error:', error.stack);
+      
       let errorMessage = 'Error al obtener las personas';
       if (error.response?.status === 404) {
         errorMessage = 'No se encontró el cantón especificado';

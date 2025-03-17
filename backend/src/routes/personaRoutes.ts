@@ -8,7 +8,10 @@ import {
   addDocumentoToPersona,
   getDocumentosByPersona,
   deleteDocumentoFromPersona,
-  getPersonaStats
+  getPersonaStats,
+  getPersonasCreatedByUser,
+  getPermissionStats,
+  getAllPersonas
 } from '../controllers/personaController';
 import { uploadDocumentos } from '../middlewares/uploadMiddleware';
 import { authenticateToken, withAuthenticatedHandler } from '../middlewares/auth';
@@ -18,11 +21,15 @@ import {
   checkCanCreatePersona,
   checkCanEditPersona
 } from '../middlewares/checkPermissions';
+import { checkPersonaPermission } from '../middlewares/permissions';
 
 const router = Router();
 
 // Rutas protegidas que requieren autenticación
 router.use(authenticateToken);
+
+// Ruta para obtener todas las personas (para administradores)
+router.get('/all', withAuthenticatedHandler(getAllPersonas));
 
 // Rutas para listar y crear personas dentro de un cantón
 router.get('/canton/:cantonId/personas', 
@@ -70,5 +77,15 @@ router.delete('/:id/documentos/:documentoId',
 
 // Ruta para estadísticas (solo admin)
 router.get('/stats', withAuthenticatedHandler(getPersonaStats));
+
+// Nuevas rutas
+router.get('/canton/:cantonId/user/:userId/created',
+  withAuthenticatedHandler(checkPersonaAccess),
+  withAuthenticatedHandler(getPersonasCreatedByUser)
+);
+
+router.get('/stats/:userId?',
+  withAuthenticatedHandler(getPermissionStats)
+);
 
 export default router; 

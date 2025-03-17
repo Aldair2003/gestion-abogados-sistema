@@ -18,16 +18,37 @@ export const checkCantonAccess = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { id: cantonId } = req.params;
+    console.log('=== Inicio checkCantonAccess ===');
+    const { cantonId } = req.params;
     const userId = req.user.id;
+    const userRole = req.user.rol;
+    
+    console.log(`Verificando acceso al cantón ${cantonId} para usuario ${userId} con rol ${userRole}`);
 
     // Si es admin, tiene acceso total
-    if (req.user.rol === 'ADMIN') {
+    if (userRole === 'ADMIN') {
+      console.log('Usuario es ADMIN, otorgando acceso total al cantón');
       return next();
     }
 
-    // Verificar si tiene permiso para ver el cantón
-    const permission = await prisma.cantonPermission.findFirst({
+    // Verificar si el cantón existe
+    const canton = await prisma.canton.findUnique({
+      where: { id: Number(cantonId) }
+    });
+
+    if (!canton) {
+      console.log(`Cantón ${cantonId} no encontrado`);
+      throw new CustomError({
+        code: ApiErrorCode.NOT_FOUND,
+        message: 'Cantón no encontrado',
+        status: 404
+      });
+    }
+
+    console.log(`Cantón ${cantonId} (${canton.nombre}) encontrado, verificando permisos...`);
+
+    // Verificar si el usuario tiene permiso en el cantón
+    const cantonPermission = await prisma.cantonPermission.findFirst({
       where: {
         userId,
         cantonId: Number(cantonId),
@@ -35,16 +56,20 @@ export const checkCantonAccess = async (
       }
     });
 
-    if (!permission) {
+    if (!cantonPermission) {
+      console.log(`Usuario ${userId} no tiene permiso de visualización en el cantón ${cantonId}`);
       throw new CustomError({
         code: ApiErrorCode.FORBIDDEN,
-        message: 'No tienes permiso para acceder a este cantón',
+        message: 'No tienes acceso a este cantón',
         status: 403
       });
     }
 
+    console.log(`Usuario ${userId} tiene permiso en el cantón ${cantonId}: ${JSON.stringify(cantonPermission)}`);
+    console.log('=== Fin checkCantonAccess ===');
     next();
   } catch (error) {
+    console.error('Error en checkCantonAccess:', error);
     next(error);
   }
 };
@@ -171,11 +196,17 @@ export const checkCanEditPersona = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    console.log('=== Inicio checkCanEditPersona ===');
     const { id: personaId } = req.params;
     const userId = req.user.id;
+    const userRole = req.user.rol;
+    
+    console.log(`Verificando permisos de edición para persona ${personaId}`);
+    console.log(`Usuario: ${userId}, Rol: ${userRole}`);
 
     // Si es admin, tiene acceso total
-    if (req.user.rol === 'ADMIN') {
+    if (userRole === 'ADMIN') {
+      console.log(`Usuario ${userId} es ADMIN, otorgando acceso total de edición`);
       return next();
     }
 
@@ -188,12 +219,15 @@ export const checkCanEditPersona = async (
     });
 
     if (!persona) {
+      console.log(`Persona ${personaId} no encontrada`);
       throw new CustomError({
         code: ApiErrorCode.NOT_FOUND,
         message: 'Persona no encontrada',
         status: 404
       });
     }
+
+    console.log(`Persona encontrada: ID=${persona.id}, Creador=${persona.createdBy}, Cantón=${persona.cantonId}`);
 
     // Verificar acceso al cantón
     const cantonPermission = await prisma.cantonPermission.findFirst({
@@ -205,6 +239,7 @@ export const checkCanEditPersona = async (
     });
 
     if (!cantonPermission) {
+      console.log(`Usuario ${userId} no tiene permiso en el cantón ${persona.cantonId}`);
       throw new CustomError({
         code: ApiErrorCode.FORBIDDEN,
         message: 'No tienes acceso a este cantón',
@@ -212,12 +247,19 @@ export const checkCanEditPersona = async (
       });
     }
 
+    console.log(`Usuario ${userId} tiene permiso en el cantón ${persona.cantonId}`);
+
     // Verificar si es el creador o tiene permisos específicos
     const isCreator = persona.createdBy === userId;
     
+    console.log(`¿El usuario ${userId} es el creador de la persona ${personaId}?`, isCreator);
+    
     if (isCreator) {
+      console.log(`Usuario ${userId} es el creador de la persona ${personaId}, permitiendo edición automática`);
       return next();
     }
+
+    console.log(`Usuario ${userId} no es el creador, verificando permisos específicos...`);
 
     // Si no es el creador, verificar si tiene permiso específico de edición
     const personaPermission = await prisma.personaPermission.findFirst({
@@ -227,7 +269,10 @@ export const checkCanEditPersona = async (
       }
     });
 
+    console.log(`Permisos específicos encontrados:`, personaPermission);
+
     if (!personaPermission?.canEdit) {
+      console.log(`Usuario ${userId} no tiene permiso de edición para la persona ${personaId}`);
       throw new CustomError({
         code: ApiErrorCode.FORBIDDEN,
         message: 'No tienes permiso para editar esta persona o sus documentos',
@@ -235,8 +280,11 @@ export const checkCanEditPersona = async (
       });
     }
 
+    console.log(`Usuario ${userId} tiene permiso de edición para la persona ${personaId}`);
+    console.log('=== Fin checkCanEditPersona ===');
     next();
   } catch (error) {
+    console.error('Error en checkCanEditPersona:', error);
     next(error);
   }
 };

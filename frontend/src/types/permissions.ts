@@ -7,18 +7,21 @@ export interface User {
   rol: string;
   isProfileCompleted: boolean;
   photoUrl?: string;
+  cantones: Canton[];
 }
 
 export interface Canton {
   id: string;
   nombre: string;
-  provincia: string;
+  provincia?: string;
 }
 
 export interface Persona {
   id: string;
   nombre: string;
   cedula: string;
+  cantonId: string;
+  canton: Canton;
 }
 
 export interface BasePermission {
@@ -33,14 +36,48 @@ export interface BasePermission {
   user: User;
 }
 
-export interface CantonPermission extends BasePermission {
-  cantonId: string;
+export interface CantonPermission {
+  id: string;
+  user: User;
   canton: Canton;
+  cantonId: string;
+  permissions: {
+    view: boolean;
+    edit: boolean;
+    delete: boolean;
+    createExpedientes: boolean;
+  };
 }
 
-export interface PersonaPermission extends BasePermission {
-  personaId: string;
+export interface PersonaPermission {
+  id: string;
+  user: User;
   persona: Persona;
+  personas?: Persona[];
+  cantones?: Canton[];
+  canView: boolean;
+  canManage: boolean;
+  updatedAt: string;
+}
+
+export interface PermissionWithResource {
+  id: string;
+  userId: string;
+  user: {
+    id: string;
+    nombre: string;
+    email: string;
+    photoUrl?: string;
+  };
+  permissions: {
+    view: boolean;
+    edit: boolean;
+    delete: boolean;
+    createExpedientes: boolean;
+  };
+  canton?: Canton;
+  cantones?: Canton[];
+  persona?: Persona;
 }
 
 export type Permission = CantonPermission | PersonaPermission;

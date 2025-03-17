@@ -4,6 +4,7 @@ import Select, { MultiValue, ActionMeta } from 'react-select';
 import { permissionService } from '../../../services/permissionService';
 import { getPhotoUrl } from '../../../utils/urls';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { Canton as DBCanton, PermissionWithResource } from '../../../types/permissions';
 
 const RESOURCE_TYPE = {
   CANTON: 'canton' as const,
@@ -19,45 +20,15 @@ interface PermissionData {
   createExpedientes: boolean;
 }
 
-interface DBCanton {
-  id: number | string;
-  nombre: string;
-  provincia: string;
-}
-
 interface Canton {
   value: string | number;
   label: string;
-  provincia: string;
+  provincia?: string;
 }
 
 interface UpdatedData {
   cantonIds: string[];
   permissions: PermissionData;
-}
-
-interface PermissionWithResource {
-  id: string;
-  userId: string;
-  user: {
-    id: string;
-    nombre: string;
-    email: string;
-    photoUrl?: string;
-  };
-  permissions: {
-    view: boolean;
-    edit: boolean;
-    delete: boolean;
-    createExpedientes: boolean;
-  };
-  canton?: DBCanton;
-  cantones?: DBCanton[];
-  persona?: {
-    id: string;
-    nombre: string;
-    cedula: string;
-  };
 }
 
 interface EditPermissionModalProps {

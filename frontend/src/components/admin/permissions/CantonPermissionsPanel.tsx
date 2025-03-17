@@ -1,29 +1,17 @@
-import { useState, useEffect } from 'react';
-import { PlusIcon, ExclamationTriangleIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { PlusIcon, ExclamationTriangleIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon } from '@heroicons/react/24/solid';
 import { AssignPermissionModal } from './AssignPermissionModal';
 import { EditPermissionModal } from './EditPermissionModal';
 import { Dialog } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import { permissionService } from '../../../services/permissionService';
-import { User, Canton, CantonPermission, CantonPermissionData, PersonaPermissionData } from '../../../types/permissions';
+import { User, Canton, CantonPermission, CantonPermissionData, PersonaPermissionData, PermissionWithResource } from '../../../types/permissions';
 import { getPhotoUrl } from '../../../utils/urls';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { triggerPermissionSync } from './PersonaPermissionsPanel';
 
-const MapPinIcon = ({ className }: { className?: string }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    fill="none" 
-    viewBox="0 0 24 24" 
-    strokeWidth="1.5" 
-    stroke="currentColor" 
-    className={className}
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-  </svg>
-);
-
-interface GroupedPermission extends Omit<CantonPermission, 'canton'> {
+interface GroupedPermission extends Omit<PermissionWithResource, 'canton'> {
   cantones: Canton[];
 }
 
@@ -34,22 +22,90 @@ export const CantonPermissionsPanel = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selectedPermission, setSelectedPermission] = useState<CantonPermission | null>(null);
+  const [selectedPermission, setSelectedPermission] = useState<PermissionWithResource | null>(null);
   const [permissionToRevoke, setPermissionToRevoke] = useState<GroupedPermission | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [cantones, setCantones] = useState<Canton[]>([]);
   const [imageErrors, setImageErrors] = useState<{[key: string]: boolean}>({});
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadPermissions();
     loadUsersAndCantones();
   }, []);
 
-  const loadPermissions = async () => {
-    setLoading(true);
+  useEffect(() => {
+    const checkScroll = () => {
+      const container = tableContainerRef.current;
+      if (container) {
+        setCanScrollLeft(container.scrollLeft > 0);
+        setCanScrollRight(
+          container.scrollLeft < container.scrollWidth - container.clientWidth - 5
+        );
+      }
+    };
+
+    const container = tableContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', checkScroll);
+      checkScroll();
+      
+      window.addEventListener('resize', checkScroll);
+    }
+    
+    return () => {
+      if (container) {
+        container.removeEventListener('scroll', checkScroll);
+      }
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [permissions]);
+
+  useEffect(() => {
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .canton-permissions-table-container::-webkit-scrollbar {
+        display: none;
+      }
+      
+      @media (max-width: 768px) {
+        .canton-permissions-table-container {
+          -webkit-overflow-scrolling: touch;
+          overflow-x: auto;
+          scroll-snap-type: x proximity;
+        }
+        
+        .canton-permissions-table-container table {
+          width: max-content;
+          min-width: 100%;
+        }
+        
+        .canton-permissions-table-container th,
+        .canton-permissions-table-container td {
+          white-space: nowrap;
+        }
+        
+        .canton-permissions-table-container .hidden-mobile {
+          display: none;
+        }
+      }
+    `;
+    
+    document.head.appendChild(styleElement);
+    
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
+  const loadPermissions = async (reload = false) => {
+    if (!reload) {
+      setLoading(true);
+    }
     try {
       const permissions = await permissionService.getCantonPermissions();
-      // Agrupar permisos por usuario
       const groupedPermissions = permissions.reduce((acc: { [key: string]: CantonPermission[] }, permission: CantonPermission) => {
         if (!acc[permission.user.id]) {
           acc[permission.user.id] = [];
@@ -58,10 +114,9 @@ export const CantonPermissionsPanel = () => {
         return acc;
       }, {});
       
-      // Convertir el objeto agrupado en un array de permisos únicos por usuario
       const uniquePermissions: GroupedPermission[] = (Object.values(groupedPermissions) as CantonPermission[][]).map((userPermissions) => ({
         id: userPermissions[0].id,
-        userId: userPermissions[0].userId,
+        userId: userPermissions[0].user.id,
         user: userPermissions[0].user,
         permissions: userPermissions[0].permissions,
         cantones: userPermissions.map(p => p.canton),
@@ -73,7 +128,9 @@ export const CantonPermissionsPanel = () => {
       console.error('Error cargando permisos:', error);
       toast.error('Error al cargar los permisos');
     } finally {
-      setLoading(false);
+      if (!reload) {
+        setLoading(false);
+      }
     }
   };
 
@@ -84,18 +141,29 @@ export const CantonPermissionsPanel = () => {
         permissionService.getCantones()
       ]);
       
+      console.log('Respuesta de colaboradores:', usersResponse);
       console.log('Cantones recibidos:', cantonesResponse);
-      console.log('Estructura de cantones:', {
-        cantones: cantonesResponse,
-        primerCanton: cantonesResponse[0]
-      });
       
-      const users = usersResponse.data.data || [];
-      setCantones(cantonesResponse);
-      setUsers(users);
+      if (usersResponse && usersResponse.data) {
+        console.log('Colaboradores cargados:', usersResponse.data);
+        setUsers(usersResponse.data);
+      } else {
+        console.warn('No se recibieron datos de colaboradores');
+        setUsers([]);
+      }
+      
+      if (Array.isArray(cantonesResponse) && cantonesResponse.length > 0) {
+        console.log('Cantones cargados:', cantonesResponse);
+        setCantones(cantonesResponse);
+      } else {
+        console.warn('No se recibieron datos de cantones');
+        setCantones([]);
+      }
     } catch (error) {
       console.error('Error cargando datos:', error);
       toast.error('Error al cargar usuarios y cantones');
+      setUsers([]);
+      setCantones([]);
     }
   };
 
@@ -122,19 +190,85 @@ export const CantonPermissionsPanel = () => {
     }
   };
 
-  const handleSaveEdit = async (permissionId: string, updatedData: { cantonIds: string[], permissions: { view: boolean, edit: boolean, delete: boolean, createExpedientes: boolean } }) => {
+  const handleSaveEdit = async (permissionId: string, updatedData: {
+    cantonIds: string[];
+    permissions: {
+      view: boolean;
+      edit: boolean;
+      delete: boolean;
+      createExpedientes: boolean;
+    };
+  }) => {
     try {
-      await permissionService.assignMultipleCantonPermissions({
-        userId: selectedPermission?.user.id || '',
+      const userId = selectedPermission?.user.id || '';
+      
+      console.log('Datos actualizados:', {
+        permissionId,
+        userId,
         cantonIds: updatedData.cantonIds,
         permissions: updatedData.permissions
       });
       
-      toast.success('Permisos actualizados correctamente');
-      loadPermissions();
+      const previousCantonIds = selectedPermission ? 
+        permissions
+          .filter(p => p.user.id === userId)
+          .map(p => p.cantones[0]?.id).filter(Boolean) : 
+        [];
+      
+      console.log('IDs de cantones anteriores:', previousCantonIds);
+      console.log('Nuevos IDs de cantones:', updatedData.cantonIds);
+      
+      const response = await permissionService.assignMultipleCantonPermissions({
+        userId,
+        cantonIds: updatedData.cantonIds,
+        permissions: updatedData.permissions
+      });
+      
+      console.log('Respuesta de actualización:', response);
+      
+      const removedCantonIds = previousCantonIds.filter(
+        id => !updatedData.cantonIds.includes(id)
+      );
+      
+      console.log('Cantones eliminados:', removedCantonIds);
+      
+      if (removedCantonIds.length > 0) {
+        await permissionService.syncPersonaPermissionsAfterCantonChange(
+          userId,
+          removedCantonIds,
+          'delete'
+        );
+      }
+      
+      for (const cantonId of updatedData.cantonIds) {
+        if (previousCantonIds.includes(cantonId)) {
+          await permissionService.syncPersonaPermissionsAfterCantonChange(
+            userId,
+            [cantonId],
+            'update',
+            updatedData.permissions
+          );
+        } else {
+          await permissionService.syncPersonaPermissionsAfterCantonChange(
+            userId,
+            [cantonId],
+            'add',
+            updatedData.permissions
+          );
+        }
+      }
+      
+      triggerPermissionSync({ 
+        action: 'cantonPermissionsUpdated', 
+        userId 
+      });
+      
+      loadPermissions(true);
       setShowEditModal(false);
+      setSelectedPermission(null);
+      toast.success('Permisos actualizados correctamente');
     } catch (error) {
-      console.error('Error actualizando permisos:', error);
+      console.error('Error al guardar los permisos:', error);
       toast.error('Error al actualizar los permisos');
     }
   };
@@ -148,13 +282,31 @@ export const CantonPermissionsPanel = () => {
     if (!permissionToRevoke) return;
 
     try {
-      // Revocar todos los permisos de cantones del usuario
+      for (const canton of permissionToRevoke.cantones) {
+        try {
+          await permissionService.syncPersonaPermissionsAfterCantonChange(
+            permissionToRevoke.user.id.toString(),
+            [canton.id.toString()],
+            'delete'
+          );
+        } catch (syncError) {
+          console.error(`Error sincronizando permisos para el cantón ${canton.id}:`, syncError);
+        }
+      }
+      
       for (const canton of permissionToRevoke.cantones) {
         await permissionService.revokeCantonPermission(
-          permissionToRevoke.userId.toString(),
+          permissionToRevoke.user.id.toString(),
           canton.id.toString()
         );
       }
+      
+      triggerPermissionSync({
+        action: 'delete',
+        userId: permissionToRevoke.user.id.toString(),
+        cantonIds: permissionToRevoke.cantones.map(c => c.id)
+      });
+      
       toast.success('Permisos revocados correctamente');
       loadPermissions();
       setShowDeleteConfirm(false);
@@ -169,9 +321,20 @@ export const CantonPermissionsPanel = () => {
     setImageErrors(prev => ({ ...prev, [userId]: true }));
   };
 
+  const handleScrollLeft = () => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollRight = () => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header con botón de asignar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -194,10 +357,49 @@ export const CantonPermissionsPanel = () => {
         </button>
       </div>
 
-      {/* Tabla de permisos */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden relative">
+        {canScrollLeft && (
+          <button 
+            onClick={handleScrollLeft}
+            className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 items-center justify-center 
+                     bg-white dark:bg-gray-700 rounded-full shadow-lg border border-gray-200 dark:border-gray-600
+                     text-gray-500 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400
+                     transition-all duration-200"
+          >
+            <ChevronLeftIcon className="h-5 w-5" />
+          </button>
+        )}
+        
+        {canScrollRight && (
+          <button 
+            onClick={handleScrollRight}
+            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8 items-center justify-center 
+                     bg-white dark:bg-gray-700 rounded-full shadow-lg border border-gray-200 dark:border-gray-600
+                     text-gray-500 dark:text-gray-400 hover:text-primary-500 dark:hover:text-primary-400
+                     transition-all duration-200"
+          >
+            <ChevronRightIcon className="h-5 w-5" />
+          </button>
+        )}
+        
+        <div 
+          ref={tableContainerRef}
+          className="canton-permissions-table-container overflow-x-auto scrollbar-hide touch-pan-x" 
+          style={{ 
+            WebkitOverflowScrolling: 'touch', 
+            scrollbarWidth: 'none', 
+            msOverflowStyle: 'none',
+            position: 'relative',
+            overflowY: 'hidden'
+          }}>
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <colgroup>
+              <col className="w-[180px] sm:w-auto" />
+              <col className="w-[180px] sm:w-auto" />
+              <col className="w-[150px] sm:w-auto" />
+              <col className="w-[180px] sm:w-auto" />
+              <col className="w-[120px] sm:w-auto" />
+            </colgroup>
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -206,10 +408,10 @@ export const CantonPermissionsPanel = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Cantón
                 </th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Permisos
                 </th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Última Modificación
                 </th>
                 <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -284,19 +486,20 @@ export const CantonPermissionsPanel = () => {
                         ))}
                       </div>
                     </td>
-                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       Ver cantones
                     </td>
-                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       Hace 2 días
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => {
-                            const firstPermission: CantonPermission = {
+                            const firstPermission: PermissionWithResource = {
                               ...permission,
-                              canton: permission.cantones[0]
+                              canton: permission.cantones[0],
+                              userId: permission.user.id
                             };
                             setSelectedPermission(firstPermission);
                             setShowEditModal(true);
@@ -327,7 +530,21 @@ export const CantonPermissionsPanel = () => {
         </div>
       </div>
 
-      {/* Modal de confirmación de eliminación */}
+      <div className="md:hidden flex justify-center items-center text-xs text-gray-500 dark:text-gray-400 mt-2 mb-1">
+        <span className="text-center">
+          Desliza horizontalmente para ver más contenido
+        </span>
+      </div>
+
+      <div className="hidden md:flex justify-center items-center text-xs text-gray-500 dark:text-gray-400 mt-2 mb-1">
+        <span className="flex items-center gap-1">
+          <span>Usa las flechas</span>
+          <ChevronLeftIcon className="h-3 w-3" />
+          <ChevronRightIcon className="h-3 w-3" />
+          <span>o desplázate horizontalmente para ver más contenido</span>
+        </span>
+      </div>
+
       <Dialog
         open={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
@@ -389,7 +606,6 @@ export const CantonPermissionsPanel = () => {
         </div>
       </Dialog>
 
-      {/* Modales */}
       <AssignPermissionModal
         isOpen={showAssignModal}
         onClose={() => setShowAssignModal(false)}

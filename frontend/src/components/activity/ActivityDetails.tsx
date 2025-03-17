@@ -77,12 +77,12 @@ export const ActivityDetails: React.FC<ActivityDetailsProps> = ({
   const categoryStyle = getCategoryStyle(activity.category);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-4 md:p-6">
       {/* Botón Volver con mejor visibilidad */}
       <div className="flex items-center justify-between">
         <button
           onClick={onClose}
-          className="inline-flex items-center px-4 py-2 text-sm font-medium
+          className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium
                    text-gray-700 dark:text-white bg-white dark:bg-gray-800
                    border border-gray-200 dark:border-gray-700 rounded-lg
                    hover:bg-gray-50 dark:hover:bg-gray-700/80
@@ -90,7 +90,7 @@ export const ActivityDetails: React.FC<ActivityDetailsProps> = ({
                    dark:focus:ring-offset-gray-900 dark:focus:ring-indigo-400
                    transition-all duration-150 shadow-sm dark:shadow-gray-900/20"
         >
-          <ArrowLeftOnRectangleIcon className="w-4 h-4 mr-2" />
+          <ArrowLeftOnRectangleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
           Volver al listado
         </button>
       </div>
@@ -98,21 +98,21 @@ export const ActivityDetails: React.FC<ActivityDetailsProps> = ({
       {/* Encabezado de la actividad con mejor contraste */}
       <div className="rounded-xl bg-white dark:bg-gray-800/95 border border-gray-200 dark:border-gray-700/80 
                     overflow-hidden shadow-sm dark:shadow-lg">
-        <div className="p-6">
-          <div className="flex items-start space-x-4">
-            <div className={`p-3 rounded-lg ${categoryStyle.bgColor} ring-1 ring-black/5 dark:ring-white/10`}>
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start space-x-3 sm:space-x-4">
+            <div className={`p-2 sm:p-3 rounded-lg ${categoryStyle.bgColor} ring-1 ring-black/5 dark:ring-white/10`}>
               <ActivityIcon 
                 category={activity.category} 
                 action={activity.action}
-                className={`h-6 w-6 ${categoryStyle.color}`}
+                className={`h-5 w-5 sm:h-6 sm:w-6 ${categoryStyle.color}`}
               />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-white">
                 {getActivityDescription(activity)}
               </h2>
-              <div className="mt-1 flex items-center text-sm text-gray-600 dark:text-gray-300">
-                <ClockIcon className="h-4 w-4 mr-1" />
+              <div className="mt-1 flex items-center text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+                <ClockIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                 {formatDate(activity.createdAt)}
               </div>
             </div>
@@ -121,28 +121,28 @@ export const ActivityDetails: React.FC<ActivityDetailsProps> = ({
 
         {/* Detalles de la actividad con mejor contraste */}
         <div className="border-t border-gray-200 dark:border-gray-700/80">
-          <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700/80">
-            <div className="p-6 space-y-4">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-200 dark:divide-gray-700/80">
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+              <h3 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                 Información general
               </h3>
-              <dl className="space-y-3">
+              <dl className="space-y-2 sm:space-y-3">
                 <div>
-                  <dt className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
-                    <DocumentTextIcon className="h-4 w-4 mr-1" />
+                  <dt className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
+                    <DocumentTextIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                     ID
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  <dd className="mt-1 text-xs sm:text-sm text-gray-900 dark:text-white break-all">
                     {activity.id}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
-                    <HashtagIcon className="h-4 w-4 mr-1" />
+                  <dt className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
+                    <HashtagIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                     Categoría
                   </dt>
                   <dd className="mt-1">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium 
                                    ${categoryStyle.bgColor} ${categoryStyle.color}
                                    ring-1 ring-black/10 dark:ring-white/20`}>
                       {getCategoryLabel(activity.category)}
@@ -150,51 +150,51 @@ export const ActivityDetails: React.FC<ActivityDetailsProps> = ({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
-                    <HashtagIcon className="h-4 w-4 mr-1" />
+                  <dt className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
+                    <HashtagIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                     Acción
                   </dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  <dd className="mt-1 text-xs sm:text-sm text-gray-900 dark:text-white">
                     {activity.action}
                   </dd>
                 </div>
               </dl>
             </div>
 
-            <div className="p-6 space-y-4">
-              <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+              <h3 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">
                 Metadatos
               </h3>
-              <dl className="space-y-3">
+              <dl className="space-y-2 sm:space-y-3">
                 {activity.details?.metadata?.browser && (
                   <div>
-                    <dt className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
-                      <ComputerDesktopIcon className="h-4 w-4 mr-1" />
+                    <dt className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
+                      <ComputerDesktopIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                       Navegador
                     </dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                    <dd className="mt-1 text-xs sm:text-sm text-gray-900 dark:text-white">
                       {activity.details.metadata.browser}
                     </dd>
                   </div>
                 )}
                 {activity.details?.metadata?.ipAddress && (
                   <div>
-                    <dt className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
-                      <ComputerDesktopIcon className="h-4 w-4 mr-1" />
+                    <dt className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
+                      <ComputerDesktopIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                       Dirección IP
                     </dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                    <dd className="mt-1 text-xs sm:text-sm text-gray-900 dark:text-white">
                       {activity.details.metadata.ipAddress}
                     </dd>
                   </div>
                 )}
                 {activity.details?.metadata?.location && (
                   <div>
-                    <dt className="text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
-                      <ComputerDesktopIcon className="h-4 w-4 mr-1" />
+                    <dt className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 flex items-center">
+                      <ComputerDesktopIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                       Ubicación
                     </dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                    <dd className="mt-1 text-xs sm:text-sm text-gray-900 dark:text-white">
                       {activity.details.metadata.location}
                     </dd>
                   </div>
@@ -206,26 +206,26 @@ export const ActivityDetails: React.FC<ActivityDetailsProps> = ({
 
         {/* Cambios realizados con mejor contraste */}
         {activity.details?.metadata?.changes && (
-          <div className="border-t border-gray-200 dark:border-gray-700/80 p-6">
-            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-4">
+          <div className="border-t border-gray-200 dark:border-gray-700/80 p-4 sm:p-6">
+            <h3 className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white mb-3 sm:mb-4">
               Cambios realizados
             </h3>
             <div className="rounded-lg border border-gray-200 dark:border-gray-700/80 overflow-hidden 
                           bg-gray-50 dark:bg-gray-900/50 shadow-sm dark:shadow-inner">
-              <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-700/80">
-                <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-200 dark:divide-gray-700/80">
+                <div className="p-3 sm:p-4">
                   <h4 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
                     Antes
                   </h4>
-                  <pre className="text-sm text-gray-900 dark:text-white font-mono bg-transparent">
+                  <pre className="text-xs sm:text-sm text-gray-900 dark:text-white font-mono bg-transparent overflow-x-auto">
                     {JSON.stringify(activity.details.metadata.changes.before, null, 2)}
                   </pre>
                 </div>
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   <h4 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">
                     Después
                   </h4>
-                  <pre className="text-sm text-gray-900 dark:text-white font-mono bg-transparent">
+                  <pre className="text-xs sm:text-sm text-gray-900 dark:text-white font-mono bg-transparent overflow-x-auto">
                     {JSON.stringify(activity.details.metadata.changes.after, null, 2)}
                   </pre>
                 </div>

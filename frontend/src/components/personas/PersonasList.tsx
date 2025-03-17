@@ -12,7 +12,8 @@ import {
   DocumentTextIcon,
   PencilIcon,
   TrashIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  UsersIcon
 } from '@heroicons/react/24/outline';
 import ArrowPathIcon from '../icons/ArrowPathIcon';
 
@@ -26,6 +27,8 @@ import { CalendarIcon } from '../icons/CustomIcons';
 import { Dialog } from '@headlessui/react';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import debounce from 'lodash/debounce';
+import { permissionService } from '../../services/permissionService';
+import api from '../../services/api';
 
 interface PersonasListProps {
   cantonId: string;
@@ -62,6 +65,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
   const [sortOption, setSortOption] = useState<'cedula' | 'apellidos' | 'documentosCompletos' | 'fecha_registro'>('fecha_registro');
   const [isFiltering, setIsFiltering] = useState(false);
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
 
   const isAdmin = user?.rol === 'ADMIN';
 
@@ -174,11 +178,12 @@ const PersonasList: React.FC<PersonasListProps> = ({
   }, [cantonId]);
 
   const handleEditPersona = (persona: Persona) => {
-    if (!isAdmin && persona.creadorId?.toString() !== user?.id?.toString()) {
+    if (!isAdmin && persona.creadorId?.toString() !== user?.id?.toString() && persona.createdBy?.toString() !== user?.id?.toString()) {
       toast.error('Solo puedes editar las personas que has creado');
       return;
     }
     console.log('Editando persona:', persona);
+    console.log('Abriendo modal de edición...');
     setPersonaToEdit(persona);
     setIsEditModalOpen(true);
   };
@@ -241,6 +246,66 @@ const PersonasList: React.FC<PersonasListProps> = ({
 
   // Memoize filtered personas
   const filteredPersonas = useMemo(() => personas, [personas]);
+
+  // Función para obtener los nombres de los creadores
+  const fetchCreatorNames = useCallback(async () => {
+    try {
+      // Obtener colaboradores
+      const response = await permissionService.getCollaborators();
+      const creatorMap: Record<string, string> = {};
+      
+      if (response.data && Array.isArray(response.data)) {
+        response.data.forEach((collaborator: any) => {
+          creatorMap[collaborator.id] = collaborator.nombre;
+        });
+      }
+      
+      // Añadir el administrador actual si estamos en una cuenta de administrador
+      if (user && user.rol === 'ADMIN' && user.id) {
+        creatorMap[user.id.toString()] = user.nombre || 'Administrador';
+      }
+      
+      setCreatorNames(creatorMap);
+    } catch (error) {
+      console.error('Error al obtener los nombres de los creadores:', error);
+    }
+  }, [user]);
+  
+  useEffect(() => {
+    fetchCreatorNames();
+  }, [fetchCreatorNames]);
+  
+  // Función para obtener el nombre del creador
+  const getCreatorName = (persona: Persona) => {
+    // Usar creadorId o createdBy, lo que esté disponible
+    const creatorId = persona.creadorId || persona.createdBy;
+    
+    if (!creatorId) return 'Sistema';
+    
+    const creatorName = creatorNames[creatorId.toString()];
+    
+    // Si el usuario actual es administrador, mostrar todos los nombres reales
+    if (isAdmin) {
+      // Para administradores, mostrar el nombre real si está disponible
+      if (creatorName) {
+        return creatorName;
+      } else if (creatorId === 1) {
+        return 'Administrador';
+      } else {
+        return 'Colaborador';
+      }
+    } else {
+      // Si el usuario es colaborador, mostrar nombres de colaboradores y "Sistema" para admins
+      // Verificar si el creador es un administrador (ID = 1 u otros IDs de admin conocidos)
+      const isCreatorAdmin = creatorId === 1;
+      
+      if (isCreatorAdmin) {
+        return 'Sistema';
+      } else {
+        return creatorName || 'Colaborador';
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -563,13 +628,13 @@ const PersonasList: React.FC<PersonasListProps> = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto -mt-8 px-4 sm:px-6 lg:px-8">
+    <div className="max-w-7xl mx-auto -mt-8 px-2 sm:px-6 lg:px-8">
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl blur-xl"></div>
-              <div className={`relative w-16 sm:w-20 h-16 sm:h-20 rounded-2xl flex items-center justify-center overflow-hidden ${
+              <div className={`relative w-14 sm:w-16 md:w-20 h-14 sm:h-16 md:h-20 rounded-2xl flex items-center justify-center overflow-hidden ${
                 isDarkMode 
                   ? 'bg-[#1a2234] ring-1 ring-white/10' 
                   : 'bg-white ring-1 ring-black/5 shadow-xl shadow-gray-200/20'
@@ -577,18 +642,18 @@ const PersonasList: React.FC<PersonasListProps> = ({
                 <img 
                   src={personasIcon}
                   alt="Cantón" 
-                  className="w-12 sm:w-16 h-12 sm:h-16 object-contain"
+                  className="w-10 sm:w-12 md:w-16 h-10 sm:h-12 md:h-16 object-contain"
                 />
               </div>
             </div>
             <div>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <h1 className={`text-xl sm:text-2xl font-bold ${
+                <h1 className={`text-lg sm:text-xl md:text-2xl font-bold ${
                   isDarkMode ? 'text-gray-100' : 'text-gray-900'
                 }`}>
                   {cantonNombre}
                 </h1>
-                <div className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
+                <div className={`inline-flex px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium ${
                   isDarkMode 
                     ? 'bg-[#1a2234] text-gray-300 border border-gray-700/50' 
                     : 'bg-white text-gray-600 border border-gray-200 shadow-sm'
@@ -596,7 +661,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                   Código: {cantonCodigo}
                 </div>
               </div>
-              <p className={`text-sm mt-1 ${
+              <p className={`text-xs sm:text-sm mt-1 ${
                 isDarkMode ? 'text-gray-400' : 'text-gray-600'
               }`}>
                 Administra las personas del cantón de manera eficiente.
@@ -606,8 +671,8 @@ const PersonasList: React.FC<PersonasListProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 flex-1">
-            <div className={`p-3 rounded-lg ${
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3 flex-1">
+            <div className={`p-2 sm:p-3 rounded-lg ${
               isDarkMode 
                 ? 'bg-[#1a2234] border border-gray-700/50' 
                 : 'bg-white border border-gray-200'
@@ -617,14 +682,14 @@ const PersonasList: React.FC<PersonasListProps> = ({
               }`}>
                 Total
               </p>
-              <p className={`text-2xl font-semibold ${
+              <p className={`text-xl sm:text-2xl font-semibold ${
                 isDarkMode ? 'text-gray-200' : 'text-gray-900'
               }`}>
                 {totalPersonas}
               </p>
             </div>
 
-            <div className={`p-3 rounded-lg ${
+            <div className={`p-2 sm:p-3 rounded-lg ${
               isDarkMode 
                 ? 'bg-[#1a2234] border border-gray-700/50' 
                 : 'bg-white border border-gray-200'
@@ -634,14 +699,14 @@ const PersonasList: React.FC<PersonasListProps> = ({
               }`}>
                 Completas
               </p>
-              <p className={`text-2xl font-semibold ${
+              <p className={`text-xl sm:text-2xl font-semibold ${
                 isDarkMode ? 'text-green-400' : 'text-green-600'
               }`}>
                 {personasCompletas}
               </p>
             </div>
 
-            <div className={`p-3 rounded-lg ${
+            <div className={`p-2 sm:p-3 rounded-lg ${
               isDarkMode 
                 ? 'bg-[#1a2234] border border-gray-700/50' 
                 : 'bg-white border border-gray-200'
@@ -651,7 +716,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
               }`}>
                 Pendientes
               </p>
-              <p className={`text-2xl font-semibold ${
+              <p className={`text-xl sm:text-2xl font-semibold ${
                 isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
               }`}>
                 {personasIncompletas}
@@ -661,7 +726,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center justify-center px-4 py 
+            className="inline-flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5
                       bg-primary-500 dark:bg-primary-500
                       text-white font-medium rounded-xl
                       shadow-lg shadow-primary-500/20
@@ -669,15 +734,15 @@ const PersonasList: React.FC<PersonasListProps> = ({
                       hover:bg-primary-600 dark:hover:bg-primary-600
                       transition-all duration-200"
           >
-            <CreateUserIcon className="w-5 h-5 mr-2 text-white" />
-            <span className="font-medium">Registrar Persona</span>
+            <CreateUserIcon className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 text-white" />
+            <span className="text-sm sm:text-base font-medium">Registrar Persona</span>
           </button>
         </div>
 
         <div className={`space-y-4 ${
           isDarkMode ? 'text-gray-200' : 'text-gray-900'
         }`}>
-          <div className={`p-4 rounded-xl shadow-sm ${
+          <div className={`p-3 sm:p-4 rounded-xl shadow-sm ${
             isDarkMode 
               ? 'bg-[#1a2234] border border-gray-700/50' 
               : 'bg-white border border-gray-200'
@@ -685,12 +750,12 @@ const PersonasList: React.FC<PersonasListProps> = ({
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                  <MagnifyingGlassIcon className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                 </div>
                 <input
                   type="text"
-                  placeholder="Buscar por nombre, cédula, teléfono, email o contacto de referencia..."
-                  className={`block w-full pl-10 pr-10 py-2.5 border rounded-xl text-sm transition-all duration-200 ${
+                  placeholder="Buscar por nombre, cédula..."
+                  className={`block w-full pl-9 sm:pl-10 pr-8 sm:pr-10 py-2 sm:py-2.5 border rounded-xl text-xs sm:text-sm transition-all duration-200 ${
                     isDarkMode 
                       ? 'bg-[#0f1729] border-gray-700/50 text-gray-200 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20' 
                       : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-500 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20'
@@ -708,13 +773,13 @@ const PersonasList: React.FC<PersonasListProps> = ({
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`p-2.5 rounded-xl border transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                className={`p-2 sm:p-2.5 rounded-xl border transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800 ${
                   isDarkMode
                     ? 'bg-[#0f1729] border-gray-700/50 text-gray-300'
                     : 'bg-white border-gray-300 text-gray-700'
                 } ${showFilters ? 'ring-2 ring-primary-500/20 border-primary-500' : ''}`}
               >
-                <AdjustmentsVerticalIcon className="h-5 w-5" />
+                <AdjustmentsVerticalIcon className="h-4 w-4 sm:h-5 sm:w-5" />
               </button>
             </div>
 
@@ -727,13 +792,13 @@ const PersonasList: React.FC<PersonasListProps> = ({
                   transition={{ duration: 0.2 }}
                   className="overflow-hidden"
                 >
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-3 sm:pt-4">
                     <div className="relative">
                       <select
                         value={documentalFilter}
                         onChange={(e) => handleFilterChange('documental', e.target.value)}
                         disabled={isFiltering}
-                        className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all duration-200 ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 border rounded-lg text-xs sm:text-sm transition-all duration-200 ${
                           isDarkMode 
                             ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
                             : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -750,7 +815,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                         value={dateFilter}
                         onChange={(e) => handleFilterChange('date', e.target.value)}
                         disabled={isFiltering}
-                        className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all duration-200 ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 border rounded-lg text-xs sm:text-sm transition-all duration-200 ${
                           isDarkMode 
                             ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
                             : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -768,7 +833,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                         value={sortOption}
                         onChange={(e) => handleFilterChange('sort', e.target.value)}
                         disabled={isFiltering}
-                        className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-all duration-200 ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-2.5 border rounded-lg text-xs sm:text-sm transition-all duration-200 ${
                           isDarkMode 
                             ? 'bg-[#0f1729] border-gray-700/50 text-gray-200' 
                             : 'bg-gray-50 border-gray-300 text-gray-900'
@@ -791,7 +856,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                           onSearchChange?.('');
                           applyFilters();
                         }}
-                        className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 ${
                           isDarkMode
                             ? 'bg-[#0f1729] text-gray-300 border border-gray-700/50 hover:bg-gray-800'
                             : 'bg-gray-50 text-gray-700 border border-gray-300 hover:bg-gray-100'
@@ -830,13 +895,13 @@ const PersonasList: React.FC<PersonasListProps> = ({
                         : 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
                     }`} />
 
-                    <div className="p-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pl-3 gap-4">
+                    <div className="p-3 sm:p-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pl-2 sm:pl-3 gap-3 sm:gap-4">
                         <div 
-                          className="flex items-start sm:items-center space-x-3 flex-1 cursor-pointer"
+                          className="flex items-start sm:items-center space-x-2 sm:space-x-3 flex-1 cursor-pointer"
                           onClick={() => handlePersonaClick(persona)}
                         >
-                          <div className={`relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden ${
+                          <div className={`relative flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden ${
                             isDarkMode
                               ? 'bg-[#0f1729] shadow-inner'
                               : 'bg-gray-100'
@@ -848,18 +913,18 @@ const PersonasList: React.FC<PersonasListProps> = ({
                             />
                           </div>
                           <div className="flex flex-col">
-                            <div className="flex items-center space-x-3">
-                              <h3 className={`text-base font-bold ${
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3">
+                              <h3 className={`text-sm sm:text-base font-bold ${
                                 isDarkMode ? 'text-gray-100' : 'text-gray-900'
                               }`}>
                                 {persona.nombres} {persona.apellidos}
                               </h3>
-                              <div className={`inline-flex items-center px-3 py-1 rounded-lg text-base font-bold transition-all duration-200 ${
+                              <div className={`inline-flex items-center px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg text-sm sm:text-base font-bold transition-all duration-200 mt-1 sm:mt-0 ${
                                 isDarkMode 
                                   ? 'bg-gradient-to-r from-gray-700/50 to-gray-800/50 text-gray-100 border border-gray-600/30 shadow-inner shadow-black/10' 
                                   : 'bg-gradient-to-r from-gray-100 to-gray-50 text-gray-900 border border-gray-200/80 shadow-sm'
                               }`}>
-                                <span className={`mr-2 text-xs font-semibold ${
+                                <span className={`mr-1 sm:mr-2 text-xs font-semibold ${
                                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                                 }`}>CI:</span>
                                 {persona.cedula}
@@ -879,92 +944,109 @@ const PersonasList: React.FC<PersonasListProps> = ({
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-1.5 ml-16 sm:ml-0">
+                        <div className="flex space-x-2 ml-12 sm:ml-0 mt-2 sm:mt-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleViewDocuments(persona);
                             }}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
+                            className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${
                               isDarkMode
                                 ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-primary-400 border border-gray-700'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-primary-600 border border-gray-200'
                             }`}
                             title="Ver documentos"
                           >
-                            <DocumentTextIcon className="h-4 w-4" />
+                            <DocumentTextIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                           </button>
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditPersona(persona);
-                            }}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
-                              isDarkMode
-                                ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-blue-400 border border-gray-700'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-blue-600 border border-gray-200'
-                            }`}
-                            title="Editar persona"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
+                          {(() => {
+                            const isCreator = persona.creadorId?.toString() === user?.id?.toString() || 
+                                              persona.createdBy?.toString() === user?.id?.toString();
+                            console.log(`Persona ${persona.id} - isCreator: ${isCreator}, userId: ${user?.id}`);
+                            console.log(`creadorId: ${persona.creadorId}, createdBy: ${persona.createdBy}`);
+                            
+                            return (isAdmin || isCreator) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  console.log('Botón de editar clickeado para persona:', persona.id);
+                                  handleEditPersona(persona);
+                                }}
+                                className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${
+                                  isDarkMode
+                                    ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-blue-400 border border-gray-700'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-blue-600 border border-gray-200'
+                                }`}
+                                title="Editar persona"
+                              >
+                                <PencilIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                              </button>
+                            );
+                          })()}
 
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeletePersona(persona);
-                            }}
-                            className={`p-2 rounded-lg transition-all duration-200 ${
-                              isDarkMode
-                                ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-red-400 border border-gray-700'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-red-600 border border-gray-200'
-                            }`}
-                            title="Eliminar persona"
-                          >
-                            <TrashIcon className="h-4 w-4" />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePersona(persona);
+                              }}
+                              className={`p-1.5 sm:p-2 rounded-lg transition-all duration-200 ${
+                                isDarkMode
+                                  ? 'bg-[#0f1729] text-gray-300 hover:bg-gray-800 hover:text-red-400 border border-gray-700'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-red-600 border border-gray-200'
+                              }`}
+                              title="Eliminar persona"
+                            >
+                              <TrashIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
                       <div 
-                        className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pl-16 cursor-pointer"
+                        className="mt-3 sm:mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 pl-12 sm:pl-16 cursor-pointer"
                         onClick={() => handlePersonaClick(persona)}
                       >
-                        <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${
+                        <div className={`flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border group-hover:border-gray-300 ${
                           isDarkMode 
                             ? 'bg-[#0f1729] text-gray-300 border-gray-700 group-hover:border-gray-600' 
                             : 'bg-gray-50 text-gray-700 border-gray-200'
                         }`}>
-                          <PhoneIcon className={`h-4 w-4 mr-3 flex-shrink-0 ${
+                          <PhoneIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 mr-2 sm:mr-3 flex-shrink-0 ${
                             isDarkMode ? 'text-gray-400' : 'text-gray-500'
                           }`} />
-                          <span className="text-sm font-medium truncate">{persona.telefono}</span>
+                          <span className="text-xs sm:text-sm font-medium truncate">{persona.telefono}</span>
                         </div>
                         {persona.email && (
-                          <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${
+                          <div className={`flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border group-hover:border-gray-300 ${
                             isDarkMode 
                               ? 'bg-[#0f1729] text-gray-300 border-gray-700 group-hover:border-gray-600' 
                               : 'bg-gray-50 text-gray-700 border-gray-200'
                           }`}>
-                            <EnvelopeIcon className={`h-4 w-4 mr-3 flex-shrink-0 ${
+                            <EnvelopeIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 mr-2 sm:mr-3 flex-shrink-0 ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`} />
-                            <span className="text-sm font-medium truncate">{persona.email}</span>
+                            <span className="text-xs sm:text-sm font-medium truncate">{persona.email}</span>
                           </div>
                         )}
                         {persona.domicilio && (
-                          <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${
+                          <div className={`flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg border group-hover:border-gray-300 ${
                             isDarkMode 
                               ? 'bg-[#0f1729] text-gray-300 border-gray-700 group-hover:border-gray-600' 
                               : 'bg-gray-50 text-gray-700 border-gray-200'
                           }`}>
-                            <HomeIcon className={`h-4 w-4 mr-3 flex-shrink-0 ${
+                            <HomeIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 mr-2 sm:mr-3 flex-shrink-0 ${
                               isDarkMode ? 'text-gray-400' : 'text-gray-500'
                             }`} />
-                            <span className="text-sm font-medium truncate">{persona.domicilio}</span>
+                            <span className="text-xs sm:text-sm font-medium truncate">{persona.domicilio}</span>
                           </div>
                         )}
+                      </div>
+                      
+                      <div className="mt-1 text-xs text-gray-400 dark:text-gray-500 flex items-center pl-12 sm:pl-16">
+                        <UsersIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
+                        <span>Creado por: {getCreatorName(persona)}</span>
                       </div>
                     </div>
                   </motion.div>
