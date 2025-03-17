@@ -1,4 +1,6 @@
 import { User, Permission } from '@prisma/client';
+import { Request } from 'express';
+import { UserWithId as UserWithIdBase } from './user';
 
 // Extendemos el tipo User de Prisma
 export interface AuthUser extends User {
@@ -45,5 +47,15 @@ export interface ResetPasswordRequest {
 // export interface RequestWithUser extends Request {
 //   user?: User;
 // }
+
+export interface AuthenticatedRequest extends Request {
+  user: UserWithIdBase;
+}
+
+export interface JWTPayload {
+  id: number;
+  email: string;
+  rol: string;
+}
 
 // ... otros tipos 

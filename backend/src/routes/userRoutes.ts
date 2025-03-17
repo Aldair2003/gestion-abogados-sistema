@@ -1,5 +1,6 @@
 import { Router, RequestHandler } from 'express';
 import * as userController from '../controllers/userController';
+import * as onboardingController from '../controllers/onboardingController';
 import { authMiddleware, isAdmin, withAuthenticatedHandler } from '../middlewares/auth';
 import { loginLimiter, registerLimiter } from '../middlewares/rateLimit';
 import upload from '../middlewares/upload';
@@ -852,6 +853,9 @@ router.put('/me/profile', authMiddleware, asyncHandler(withAuthenticatedHandler(
 
 router.post('/me/photo', authMiddleware, upload.single('photo'), asyncHandler(withAuthenticatedHandler(userController.updateProfilePhoto)));
 
+// Ruta para eliminar foto de perfil
+router.delete('/me/photo', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.deleteProfilePhoto)));
+
 router.get(
   '/profile/status', 
   authMiddleware, 
@@ -914,11 +918,11 @@ router.post(
   withAuthenticatedHandler(userController.completeProfile)
 );
 
-// Ruta para completar el onboarding
-router.post(
-  '/complete-onboarding',
+// Ruta para obtener el estado de onboarding
+router.get(
+  '/onboarding-status',
   authMiddleware,
-  withAuthenticatedHandler(userController.completeOnboarding)
+  withAuthenticatedHandler(onboardingController.getOnboardingStatus)
 );
 
 // Rutas de perfil
@@ -963,5 +967,8 @@ router.post(
   [authMiddleware, upload.single('photo')],
   withAuthenticatedHandler(userController.updateProfilePhoto)
 );
+
+// Ruta para enviar correo de bienvenida al completar perfil
+router.post('/send-welcome-email', authMiddleware, asyncHandler(withAuthenticatedHandler(userController.sendWelcomeEmailOnComplete)));
 
 export default router; 

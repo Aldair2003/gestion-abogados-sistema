@@ -13,6 +13,7 @@ interface RefreshTokenRequest {
   refreshToken: string;
 }
 
+// Rutas públicas de autenticación
 const router = Router();
 
 // Handler de login
@@ -215,44 +216,71 @@ const verifyHandler = withAuth(async (
 });
 
 // Handler de logout
-const logoutHandler = withAuth(async (
-  req: AuthenticatedRequest, 
-  res: Response
-): Promise<void> => {
+const logoutHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: { tokenVersion: { increment: 1 } }
-    });
+    // Obtener el token del header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-    await logActivity(req.user.id, 'LOGOUT', {
-      category: ActivityCategory.AUTH,
-      details: {
-        description: 'Cierre de sesión exitoso',
-        metadata: {
-          email: req.user.email,
-          ipAddress: req.ip
+    if (!token) {
+      // Si no hay token, simplemente retornamos éxito
+      res.json({
+        status: 'success',
+        message: 'Sesión cerrada exitosamente'
+      });
+      return;
+    }
+
+    try {
+      // Intentar decodificar el token sin verificar la firma
+      const decoded = jwt.decode(token) as JwtPayload;
+      
+      if (decoded && decoded.id) {
+        // Incrementar la versión del token si podemos
+        try {
+          await prisma.user.update({
+            where: { id: decoded.id },
+            data: { tokenVersion: { increment: 1 } }
+          });
+
+          // Intentar registrar la actividad
+          try {
+            await logActivity(decoded.id, 'LOGOUT', {
+              category: ActivityCategory.AUTH,
+              details: {
+                description: 'Cierre de sesión exitoso',
+                metadata: {
+                  email: decoded.email,
+                  ipAddress: req.ip,
+                  reason: 'Logout manual'
+                }
+              }
+            });
+          } catch (error) {
+            console.warn('Error al registrar actividad de logout:', error);
+          }
+        } catch (error) {
+          console.warn('Error al actualizar tokenVersion:', error);
         }
       }
-    });
+    } catch (error) {
+      console.warn('Error al decodificar token durante logout:', error);
+    }
 
+    // Siempre retornamos éxito
     res.json({
       status: 'success',
       message: 'Sesión cerrada exitosamente'
     });
   } catch (error) {
     console.error('Error al cerrar sesión:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Error interno del servidor',
-      error: {
-        code: ApiErrorCode.INTERNAL_ERROR,
-        message: 'Error al procesar la solicitud',
-        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
-      }
+    // Aún si hay error, retornamos éxito para asegurar que el frontend limpie la sesión
+    res.json({
+      status: 'success',
+      message: 'Sesión cerrada exitosamente'
     });
   }
-});
+};
 
 // Handler de refresh token
 const refreshTokenHandler = async (
@@ -372,7 +400,7 @@ const refreshTokenHandler = async (
 // Rutas
 router.post('/login', loginHandler);
 router.post('/verify', authenticateToken, verifyHandler);
-router.post('/logout', authenticateToken, logoutHandler);
+router.post('/logout', logoutHandler);
 router.post('/refresh-token', refreshTokenHandler);
 
 export default router; 

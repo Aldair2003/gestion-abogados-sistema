@@ -145,58 +145,101 @@ export const sendWelcomeEmail = async (email: string, temporalPassword: string):
   });
 };
 
+export const sendPasswordChangeConfirmation = async (email: string): Promise<void> => {
+  const content = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <div style="background: #1a365d; padding: 20px; text-align: center;">
+    <img src="${LOGO_URL}" 
+         alt="M&V Abogados" 
+         style="max-width: 300px; width: auto; height: auto; display: block; margin: 0 auto;"
+         width="300">
+  </div>
+
+  <div style="padding: 30px;">
+    <h1 style="color: #1a365d; font-size: 24px; margin: 0 0 20px; text-align: center;">¡Contraseña Actualizada Exitosamente!</h1>
+    
+    <p style="color: #4a5568; font-size: 16px; margin: 0 0 20px;">La contraseña de tu cuenta ha sido actualizada correctamente. Aquí hay algunos detalles importantes:</p>
+    
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin: 0 0 20px;">
+      <p style="margin: 0 0 10px; font-size: 15px;"><strong>Email:</strong> ${email}</p>
+      <p style="margin: 0; font-size: 15px;"><strong>Estado:</strong> <span style="background: #c6f6d5; color: #22543d; padding: 2px 8px; border-radius: 12px; font-size: 14px;">Actualizada ✓</span></p>
+    </div>
+    
+    <div style="background: #fff5f5; border-radius: 6px; padding: 12px; margin: 0 0 20px;">
+      <p style="margin: 0; font-size: 14px; color: #c53030;">⚠️ <strong>Importante:</strong> Si no realizaste este cambio, por favor contacta inmediatamente al soporte técnico.</p>
+    </div>
+    
+    <div style="background: #f0fff4; border-radius: 6px; padding: 15px; margin: 0 0 20px;">
+      <h2 style="color: #1a365d; font-size: 18px; margin: 0 0 12px;">Recomendaciones de Seguridad:</h2>
+      <ul style="margin: 0; padding: 0 0 0 20px; font-size: 14px; color: #4a5568;">
+        <li style="margin-bottom: 8px;">No compartas tu contraseña con nadie</li>
+        <li style="margin-bottom: 8px;">Utiliza una contraseña única para cada servicio</li>
+        <li style="margin-bottom: 8px;">Cambia tu contraseña regularmente</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center;">
+    <p style="margin: 0; font-size: 13px; color: #718096;">M&V Abogados © 2024 | <a href="mailto:soporte@mvabogados.com" style="color: #4299e1; text-decoration: none;">soporte@mvabogados.com</a></p>
+    <p style="margin: 5px 0 0; font-size: 13px; color: #718096;">¿Necesitas ayuda? <a href="tel:+593XXXXXXXXX" style="color: #4299e1; text-decoration: none;">+593 (XX) XXX-XXXX</a></p>
+  </div>
+</div>`;
+
+  await sendEmail({
+    to: email,
+    subject: 'Contraseña Actualizada Exitosamente - M&V Abogados',
+    html: content
+  });
+};
+
 export const sendProfileCompletionEmail = async (email: string, userData: {
   nombre: string;
   rol: string;
 }): Promise<void> => {
   const content = `
-    <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#ffffff;margin:0 auto;max-width:600px;">
-      <tr>
-        <td style="padding:30px;background:#f6f9fc;">
-          <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;">
-            <tr>
-              <td style="padding:30px;background:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-                <h1 style="margin:0 0 20px 0;color:#2d3748;font-size:24px;">¡Bienvenido ${userData.nombre}!</h1>
-                <p style="margin:0 0 12px 0;font-size:16px;line-height:24px;color:#4a5568;">Tu perfil ha sido completado exitosamente en el sistema.</p>
-                <p style="margin:0 0 12px 0;font-size:16px;line-height:24px;color:#4a5568;"><strong>Rol:</strong> ${userData.rol}</p>
-                <p style="margin:0;font-size:16px;line-height:24px;color:#4a5568;">Ya puedes comenzar a utilizar todas las funcionalidades del sistema.</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  `;
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <div style="background: #1a365d; padding: 20px; text-align: center;">
+    <img src="${LOGO_URL}" 
+         alt="M&V Abogados" 
+         style="max-width: 300px; width: auto; height: auto; display: block; margin: 0 auto;"
+         width="300">
+  </div>
+
+  <div style="padding: 30px;">
+    <h1 style="color: #1a365d; font-size: 24px; margin: 0 0 20px; text-align: center;">¡Bienvenido ${userData.nombre}!</h1>
+    
+    <p style="color: #4a5568; font-size: 16px; margin: 0 0 20px;">Tu perfil ha sido completado exitosamente. Ahora tienes acceso completo al Sistema de Gestión Legal.</p>
+    
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin: 0 0 20px;">
+      <p style="margin: 0 0 10px; font-size: 15px;"><strong>Nombre:</strong> ${userData.nombre}</p>
+      <p style="margin: 0 0 10px; font-size: 15px;"><strong>Email:</strong> ${email}</p>
+      <p style="margin: 0; font-size: 15px;"><strong>Rol:</strong> <span style="background: #ebf8ff; color: #2c5282; padding: 2px 8px; border-radius: 12px; font-size: 14px;">${userData.rol}</span></p>
+    </div>
+    
+    <div style="background: #f0fff4; border-radius: 6px; padding: 15px; margin: 0 0 20px;">
+      <h2 style="color: #1a365d; font-size: 18px; margin: 0 0 12px;">¿Qué puedes hacer ahora?</h2>
+      <ul style="margin: 0; padding: 0 0 0 20px; font-size: 14px; color: #4a5568;">
+        <li style="margin-bottom: 8px;">Acceder a todas las funcionalidades del sistema</li>
+        <li style="margin-bottom: 8px;">Gestionar casos y expedientes</li>
+        <li style="margin-bottom: 8px;">Colaborar con otros miembros del equipo</li>
+        <li style="margin-bottom: 8px;">Visualizar reportes y estadísticas</li>
+      </ul>
+    </div>
+
+    <div style="text-align: center; margin: 0 0 20px;">
+      <a href="${process.env.FRONTEND_URL}/dashboard" style="display: inline-block; background: #4299e1; color: white; text-decoration: none; padding: 12px 24px; border-radius: 4px; font-weight: bold;">Ir al Dashboard</a>
+    </div>
+  </div>
+
+  <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center;">
+    <p style="margin: 0; font-size: 13px; color: #718096;">M&V Abogados © 2024 | <a href="mailto:soporte@mvabogados.com" style="color: #4299e1; text-decoration: none;">soporte@mvabogados.com</a></p>
+    <p style="margin: 5px 0 0; font-size: 13px; color: #718096;">¿Necesitas ayuda? <a href="tel:+593XXXXXXXXX" style="color: #4299e1; text-decoration: none;">+593 (XX) XXX-XXXX</a></p>
+  </div>
+</div>`;
 
   await sendEmail({
     to: email,
-    subject: 'Perfil completado exitosamente',
-    html: content
-  });
-};
-
-export const sendPasswordChangeConfirmation = async (email: string): Promise<void> => {
-  const content = `
-    <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;background:#ffffff;margin:0 auto;max-width:600px;">
-      <tr>
-        <td style="padding:30px;background:#f6f9fc;">
-          <table role="presentation" style="width:100%;border-collapse:collapse;border:0;border-spacing:0;">
-            <tr>
-              <td style="padding:30px;background:#ffffff;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
-                <h1 style="margin:0 0 20px 0;color:#2d3748;font-size:24px;">Cambio de contraseña</h1>
-                <p style="margin:0 0 12px 0;font-size:16px;line-height:24px;color:#4a5568;">Tu contraseña ha sido actualizada exitosamente.</p>
-                <p style="margin:0;font-size:16px;line-height:24px;color:#e53e3e;">Si no realizaste este cambio, por favor contacta al administrador inmediatamente.</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  `;
-
-  await sendEmail({
-    to: email,
-    subject: 'Cambio de contraseña exitoso',
+    subject: '¡Bienvenido a M&V Abogados - Perfil Completado!',
     html: content
   });
 }; 

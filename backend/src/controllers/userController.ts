@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import { sendWelcomeEmail, sendPasswordResetEmail, sendPasswordChangeConfirmation } from '../services/emailService';
+import { sendWelcomeEmail, sendPasswordResetEmail, sendPasswordChangeConfirmation, sendProfileCompletionEmail } from '../services/emailService';
 import { validatePasswordStrength } from '../utils/passwordValidator';
 import { validateCedula, validateTelefono } from '../utils/validators';
 import { prisma } from '../lib/prisma';
@@ -176,14 +176,14 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
-    console.log('Intento de login:', { email });
+    console.log('[Auth] Iniciando login:', { email });
 
     // Normalizar el email
     const normalizedEmail = email.toLowerCase().trim();
-    console.log('Email normalizado:', normalizedEmail);
+    console.log('[Auth] Email normalizado:', normalizedEmail);
 
     // Buscar usuario usando la instancia global de prisma
-    console.log('Buscando usuario en la base de datos...');
+    console.log('[Auth] Buscando usuario en la base de datos...');
     const user = await prisma.user.findFirst({
       where: {
         email: {
@@ -193,14 +193,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    console.log('Búsqueda de usuario:', {
-      emailBuscado: normalizedEmail,
+    console.log('[Auth] Estado del usuario encontrado:', {
       encontrado: !!user,
-      activo: user?.isActive
+      activo: user?.isActive,
+      isFirstLogin: user?.isFirstLogin,
+      isTemporaryPassword: user?.isTemporaryPassword,
+      isProfileCompleted: user?.isProfileCompleted,
+      lastLogin: user?.lastLogin
     });
 
     if (!user) {
-      console.log('Usuario no encontrado');
+      console.log('[Auth] Error: Usuario no encontrado');
       res.status(401).json({
         error: ApiErrorCode.UNAUTHORIZED,
         message: 'Credenciales incorrectas. Por favor, verifique sus datos.',
@@ -209,7 +212,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (!user.isActive) {
-      console.log('Usuario desactivado');
+      console.log('[Auth] Error: Usuario desactivado');
       res.status(401).json({
         error: ApiErrorCode.ACCOUNT_DISABLED,
         message: 'Su cuenta ha sido desactivada. Por favor, contacte al administrador.',
@@ -219,10 +222,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Validar contraseña
     const isValidPassword = await bcrypt.compare(password, user.password);
-    console.log('Validación de contraseña:', { isValid: isValidPassword });
+    console.log('[Auth] Validación de contraseña:', { 
+      isValid: isValidPassword,
+      isTemporaryPassword: user.isTemporaryPassword
+    });
 
     if (!isValidPassword) {
-      console.log('Contraseña inválida');
+      console.log('[Auth] Error: Contraseña inválida');
       res.status(401).json({
         error: ApiErrorCode.UNAUTHORIZED,
         message: 'Credenciales incorrectas. Por favor, verifique sus datos.',
@@ -271,9 +277,18 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         rol: true,
         isFirstLogin: true,
         isProfileCompleted: true,
+        isTemporaryPassword: true,
         tokenVersion: true,
         nombre: true
       }
+    });
+
+    console.log('[Auth] Usuario actualizado después del login:', {
+      userId: updatedUser.id,
+      email: updatedUser.email,
+      isFirstLogin: updatedUser.isFirstLogin,
+      isTemporaryPassword: updatedUser.isTemporaryPassword,
+      isProfileCompleted: updatedUser.isProfileCompleted
     });
 
     // Registrar actividad
@@ -306,7 +321,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       refreshToken,
     });
   } catch (error) {
-    console.error('Error en login:', error);
+    console.error('[Auth] Error crítico en login:', error);
     res.status(500).json({
       error: ApiErrorCode.INTERNAL_ERROR,
       message: 'Error interno del servidor',
@@ -314,84 +329,103 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const changePassword = async (
-  req: AuthenticatedRequest & { body: ChangePasswordRequest }, 
-  res: Response
-): Promise<void> => {
+export const changePassword = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { currentPassword, newPassword } = req.body;
     const userId = req.user?.id;
-
     if (!userId) {
       res.status(401).json({ message: 'Usuario no autenticado' });
       return;
     }
 
+    const { currentPassword, newPassword } = req.body;
+
+    // Obtener usuario actual
     const user = await prisma.user.findUnique({
       where: { id: userId }
     });
+
     if (!user) {
       res.status(404).json({ message: 'Usuario no encontrado' });
       return;
     }
 
+    // Verificar contraseña actual
     const isValidPassword = await bcrypt.compare(currentPassword, user.password);
     if (!isValidPassword) {
-      res.status(401).json({ message: 'Contraseña actual incorrecta' });
+      res.status(400).json({ message: 'Contraseña actual incorrecta' });
       return;
     }
 
-    // Validar fortaleza de la nueva contraseña
-    const passwordValidation = validatePasswordStrength(newPassword);
-    if (!passwordValidation.isValid) {
+    // Validar nueva contraseña
+    const validationResult = validatePasswordStrength(newPassword);
+    if (!validationResult.isValid) {
       res.status(400).json({
-        message: 'La nueva contraseña no cumple con los requisitos de seguridad',
-        errors: passwordValidation.errors
+        message: 'La contraseña no cumple con los requisitos de seguridad',
+        details: validationResult.errors
       });
       return;
     }
 
+    // Encriptar nueva contraseña
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await prisma.user.update({
+
+    // Actualizar usuario con nueva contraseña y estados
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { 
+      data: {
         password: hashedPassword,
         isTemporaryPassword: false,
+        isFirstLogin: false,
+        tokenVersion: {
+          increment: 1
+        },
         updatedAt: new Date()
       }
     });
 
+    // Generar nuevo token
+    const token = jwt.sign(
+      { 
+        id: updatedUser.id, 
+        email: updatedUser.email,
+        rol: updatedUser.rol,
+        tokenVersion: updatedUser.tokenVersion
+      },
+      process.env.JWT_SECRET || 'default_secret',
+      { expiresIn: '24h' }
+    );
+
+    // Registrar actividad
     await logActivity(userId, 'CHANGE_PASSWORD', {
-      category: ActivityCategory.USER,
+      category: ActivityCategory.AUTH,
       details: {
-        description: 'Contraseña cambiada exitosamente',
+        description: 'Contraseña actualizada exitosamente',
         metadata: {
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'],
+          isTemporaryPassword: false,
+          isFirstLogin: false,
           timestamp: new Date().toISOString()
         }
       }
     });
 
-    // Crear notificación
-    await createNotification(
-      userId,
-      NotificationType.PASSWORD_CHANGED,
-      'Has cambiado tu contraseña exitosamente',
-      {
-        timestamp: new Date().toISOString()
-      }
-    );
+    // Enviar confirmación por email
+    await sendPasswordChangeConfirmation(user.email);
 
-    res.status(200).json({ 
+    res.json({
       message: 'Contraseña actualizada exitosamente',
-      isTemporaryPassword: false
+      token,
+      user: {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        isTemporaryPassword: updatedUser.isTemporaryPassword,
+        isFirstLogin: updatedUser.isFirstLogin,
+        isProfileCompleted: updatedUser.isProfileCompleted,
+        tokenVersion: updatedUser.tokenVersion
+      }
     });
   } catch (error) {
-    res.status(500).json({
-      message: 'Error al cambiar la contraseña',
-      error: (error as Error).message
-    });
+    console.error('Error al cambiar contraseña:', error);
+    res.status(500).json({ message: 'Error al cambiar la contraseña' });
   }
 };
 
@@ -2364,6 +2398,157 @@ export const keepAlive = async (req: AuthenticatedRequest, res: Response): Promi
         message: 'Error al procesar la solicitud',
         details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
       }
+    });
+  }
+};
+
+export const deleteProfilePhoto = async (
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    await ProfilePhotoService.deletePhoto(req.user.id);
+
+    // Obtener el usuario actualizado
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        cedula: true,
+        telefono: true,
+        domicilio: true,
+        estadoProfesional: true,
+        numeroMatricula: true,
+        universidad: true,
+        photoUrl: true,
+        rol: true,
+        isActive: true
+      }
+    });
+
+    res.json({
+      message: 'Foto de perfil eliminada exitosamente',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Error al eliminar foto de perfil:', error);
+    if (error instanceof CustomError) {
+      res.status(error.status).json({
+        message: error.message,
+        code: error.code
+      });
+    } else {
+      res.status(500).json({ message: 'Error al eliminar la foto de perfil' });
+    }
+  }
+};
+
+export const logout = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    // Incrementar la versión del token para invalidar todas las sesiones existentes
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        tokenVersion: {
+          increment: 1
+        }
+      }
+    });
+
+    // Registrar la actividad de logout
+    await logActivity(userId, 'LOGOUT', {
+      category: ActivityCategory.AUTH,
+      details: {
+        description: 'Usuario cerró sesión',
+        metadata: {
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString()
+        }
+      }
+    });
+
+    res.status(200).json({ message: 'Sesión cerrada exitosamente' });
+  } catch (error) {
+    console.error('Error en logout:', error);
+    res.status(500).json({ message: 'Error al cerrar sesión' });
+  }
+};
+
+export const sendWelcomeEmailOnComplete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { user } = req;
+    if (!user) {
+      res.status(401).json({ message: 'Usuario no autenticado' });
+      return;
+    }
+
+    const userData = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        email: true,
+        nombre: true,
+        rol: true
+      }
+    });
+
+    if (!userData) {
+      res.status(404).json({ message: 'Usuario no encontrado' });
+      return;
+    }
+
+    // Registrar actividad
+    await logActivity(user.id, 'PROFILE_COMPLETED', {
+      category: ActivityCategory.PROFILE,
+      details: {
+        description: 'Perfil completado exitosamente',
+        metadata: {
+          email: userData.email,
+          nombre: userData.nombre,
+          rol: userData.rol
+        }
+      }
+    });
+
+    // Enviar correo de bienvenida
+    await sendProfileCompletionEmail(userData.email, {
+      nombre: userData.nombre || 'Usuario',
+      rol: userData.rol
+    });
+
+    // Crear notificación
+    await createNotification(
+      user.id,
+      NotificationType.SUCCESS,
+      '¡Bienvenido! Has completado tu perfil exitosamente',
+      {
+        timestamp: new Date().toISOString()
+      }
+    );
+
+    res.status(200).json({ 
+      message: 'Correo de bienvenida enviado exitosamente',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error al enviar correo de bienvenida:', error);
+    res.status(500).json({ 
+      message: 'Error al enviar correo de bienvenida',
+      error: error instanceof Error ? error.message : 'Error desconocido'
     });
   }
 }; 

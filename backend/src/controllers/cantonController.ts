@@ -240,6 +240,18 @@ export const getCantones = async (
               juez: true,
             },
           },
+          personas: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              documentos: {
+                where: { isActive: true },
+                select: {
+                  id: true
+                }
+              }
+            }
+          },
           _count: {
             select: {
               personas: {
@@ -255,14 +267,31 @@ export const getCantones = async (
       prisma.canton.count({ where }),
     ]);
 
+    console.log('Cantones antes de procesar:', cantones); // Debug log
+
+    // Mapear los cantones para incluir el total de personas y documentos
+    const cantonesConTotales = cantones.map(canton => {
+      // Calcular total de documentos
+      const totalDocs = canton.personas?.reduce((sum, persona) => {
+        return sum + (persona.documentos?.length || 0);
+      }, 0) || 0;
+
+      console.log('Canton:', canton.nombre);
+      console.log('Personas:', canton.personas?.length);
+      console.log('Total documentos calculado:', totalDocs);
+      
+      return {
+        ...canton,
+        totalPersonas: canton._count.personas,
+        totalDocumentos: totalDocs,
+        personas: undefined // Removemos los datos de personas ya que solo necesitábamos el conteo
+      };
+    });
+
+    console.log('Cantones procesados:', cantonesConTotales); // Debug log
+
     const totalPages = Math.ceil(total / Number(limit));
     const hasMore = Number(page) < totalPages;
-
-    // Mapear los cantones para incluir el total de personas
-    const cantonesConTotales = cantones.map(canton => ({
-      ...canton,
-      totalPersonas: canton._count.personas
-    }));
 
     res.json({
       status: 'success',
@@ -627,11 +656,20 @@ export const deleteCanton = async (
   try {
     const { id } = req.params;
 
-    // Verificar que el cantón existe
+    // Verificar que el cantón existe y obtener toda la información relacionada
     const canton = await prisma.canton.findUnique({
       where: { id: Number(id) },
       include: {
-        jueces: true
+        jueces: {
+          include: {
+            juez: true
+          }
+        },
+        personas: {
+          include: {
+            documentos: true
+          }
+        }
       }
     });
 
@@ -644,25 +682,60 @@ export const deleteCanton = async (
       });
     }
 
-    // Verificar si tiene jueces asignados
-    if (canton.jueces.length > 0) {
-      throw new CustomError({
-        code: ApiErrorCode.VALIDATION_ERROR,
-        message: 'No se puede eliminar el cantón porque tiene jueces asignados',
-        status: 400,
-        details: { 
-          juecesCount: canton.jueces.length,
-          cantonId: id 
+    // Preparar información detallada
+    const cantonesPorJuez = canton.jueces.map(jc => ({
+      juezId: jc.juez.id,
+      juezNombre: jc.juez.nombre
+    }));
+
+    const totalJueces = canton.jueces.length;
+    const totalPersonas = canton.personas.length;
+    const totalDocumentos = canton.personas.reduce(
+      (sum, persona) => sum + persona.documentos.length,
+      0
+    );
+
+    // Eliminar en cascada usando una transacción
+    await prisma.$transaction(async (prisma) => {
+      // 1. Eliminar documentos de todas las personas del cantón
+      await prisma.documento.deleteMany({
+        where: {
+          persona: {
+            cantonId: Number(id)
+          }
         }
       });
-    }
 
-    // Eliminar el cantón
-    await prisma.canton.delete({
-      where: { id: Number(id) }
+      // 2. Eliminar todas las personas del cantón
+      await prisma.persona.deleteMany({
+        where: {
+          cantonId: Number(id)
+        }
+      });
+
+      // 3. Eliminar relaciones con jueces
+      await prisma.juezCanton.deleteMany({
+        where: {
+          cantonId: Number(id)
+        }
+      });
+
+      // 4. Eliminar permisos del cantón
+      await prisma.cantonPermission.deleteMany({
+        where: {
+          cantonId: Number(id)
+        }
+      });
+
+      // 5. Eliminar el cantón
+      await prisma.canton.delete({
+        where: {
+          id: Number(id)
+        }
+      });
     });
 
-    // Registrar la actividad
+    // Registrar la actividad con información detallada
     await logActivity(req.user!.id, 'DELETE_CANTON', {
       category: ActivityCategory.CANTON,
       targetId: Number(id),
@@ -670,14 +743,27 @@ export const deleteCanton = async (
         description: 'Cantón eliminado exitosamente',
         metadata: {
           cantonId: id,
-          cantonNombre: canton.nombre
+          cantonNombre: canton.nombre,
+          cantonCodigo: canton.codigo,
+          estadisticas: {
+            totalJueces,
+            totalPersonas,
+            totalDocumentos
+          },
+          juecesAfectados: cantonesPorJuez
         }
       }
     });
 
     res.json({
       status: 'success',
-      message: 'Cantón eliminado exitosamente'
+      message: 'Cantón eliminado exitosamente',
+      details: {
+        totalJueces,
+        totalPersonas,
+        totalDocumentos,
+        juecesAfectados: cantonesPorJuez
+      }
     });
   } catch (error) {
     next(error);

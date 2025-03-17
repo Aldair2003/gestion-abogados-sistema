@@ -5,7 +5,7 @@ import { ApiResponse, ApiErrorCode } from '../types/apiError';
 import { prisma } from '../lib/prisma';
 import { UserRole } from '@prisma/client';
 import { ActivityCategory } from '../types/prisma';
-import { AuthenticatedRequest } from '../types/common';
+import { AuthenticatedRequest } from '../types/auth';
 import { UserWithId } from '../types/user';
 
 // Clase ApiError para manejo de errores
@@ -191,7 +191,7 @@ export const authenticateToken = async (
     }
 
     // Agregar información del usuario a la request
-    req.user = user as UserWithId;
+    (req as AuthenticatedRequest).user = user as UserWithId;
     next();
   } catch (error) {
     console.error('[Auth] Error en autenticación:', error);

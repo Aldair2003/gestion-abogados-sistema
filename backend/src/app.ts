@@ -4,6 +4,7 @@ import userRoutes from './routes/userRoutes';
 import cantonRoutes from './routes/cantonRoutes';
 import personaRoutes from './routes/personaRoutes';
 import juezRoutes from './routes/juezRoutes';
+import authRoutes from './routes/authRoutes';
 import { prisma } from './lib/prisma';
 import { setupSwagger } from './swagger';
 import permissionRoutes from './routes/permissionRoutes';
@@ -45,6 +46,7 @@ app.use('/documentos', (_, res, next) => {
 setupSwagger(app);
 
 // Rutas API
+app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/cantones', cantonRoutes);
