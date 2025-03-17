@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlusIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ExclamationTriangleIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { AssignPermissionModal } from './AssignPermissionModal';
 import { EditPermissionModal } from './EditPermissionModal';
 import { Dialog } from '@headlessui/react';
@@ -172,7 +172,7 @@ export const CantonPermissionsPanel = () => {
   return (
     <div className="space-y-6">
       {/* Header con botón de asignar */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             Permisos de Cantones
@@ -184,9 +184,9 @@ export const CantonPermissionsPanel = () => {
         
         <button
           onClick={() => setShowAssignModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent 
+          className="inline-flex items-center justify-center px-4 py-2 border border-transparent 
                    rounded-lg shadow-sm text-sm font-medium text-white 
-                   bg-primary-600 hover:bg-primary-700 
+                   bg-primary-600 hover:bg-primary-700 w-full sm:w-auto
                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
@@ -200,19 +200,19 @@ export const CantonPermissionsPanel = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Colaborador
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Cantón
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Permisos
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Última Modificación
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -220,23 +220,23 @@ export const CantonPermissionsPanel = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     Cargando permisos...
                   </td>
                 </tr>
               ) : permissions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     No hay permisos asignados
                   </td>
                 </tr>
               ) : (
                 permissions.map((permission) => (
                   <tr key={permission.user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-6 py-4">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
-                                      ring-2 ring-primary-500/20 dark:ring-primary-500/30">
+                        <div className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
+                                    ring-2 ring-primary-500/20 dark:ring-primary-500/30">
                           {(() => {
                             return permission.user.photoUrl && !imageErrors[permission.user.id] ? (
                               <img
@@ -245,87 +245,79 @@ export const CantonPermissionsPanel = () => {
                                 className="h-full w-full object-cover"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
-                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(permission.user.nombre)}&background=6366f1&color=fff`;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(permission.user.nombre || 'U')}&background=6366f1&color=fff`;
                                   handleImageError(permission.user.id);
                                 }}
                               />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center bg-[#4F46E5] text-white font-medium">
-                                {permission.user.nombre[0].toUpperCase()}
+                                {(permission.user.nombre?.[0] || 'U').toUpperCase()}
                               </div>
                             );
                           })()}
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        <div className="ml-3 sm:ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[120px] sm:max-w-none">
                             {permission.user.nombre}
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate max-w-[120px] sm:max-w-none">
                             {permission.user.email}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2 max-w-md">
+                    <td className="px-3 sm:px-6 py-4">
+                      <div className="flex flex-wrap gap-2 max-w-[150px] sm:max-w-md">
                         {permission.cantones.map(canton => (
                           <span
                             key={canton.id}
-                            className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium 
+                            className="group relative inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium 
                                      bg-gradient-to-br from-primary-50 to-primary-100 
                                      dark:from-primary-900/50 dark:to-primary-800/50
                                      text-primary-700 dark:text-primary-300
                                      border border-primary-200/50 dark:border-primary-700/50
-                                     shadow-sm hover:shadow-md transition-all duration-200
-                                     hover:scale-105 transform"
+                                     shadow-sm hover:shadow-md transition-all duration-200"
                           >
-                            <MapPinIcon className="h-4 w-4 text-primary-500 dark:text-primary-400" />
+                            <MapPinIcon className="h-3 w-3 sm:h-4 sm:w-4 text-primary-500 dark:text-primary-400" />
                             <span className="truncate">{canton.nombre}</span>
-                            {canton.provincia && (
-                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-1.5 text-xs
-                                            bg-gray-900/95 text-white rounded-lg opacity-0 group-hover:opacity-100
-                                            transition-all duration-200 pointer-events-none whitespace-nowrap z-10
-                                            shadow-lg backdrop-blur-sm border border-gray-700/50
-                                            group-hover:translate-y-0 translate-y-1">
-                                <div className="flex items-center gap-2">
-                                  <MapPinIcon className="h-3.5 w-3.5" />
-                                  <span className="font-medium">Provincia: {canton.provincia}</span>
-                                </div>
-                              </div>
-                            )}
                           </span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        Ver cantones
-                      </div>
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      Ver cantones
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       Hace 2 días
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => {
-                          // Convertir el permiso agrupado a CantonPermission para el modal de edición
-                          const firstPermission: CantonPermission = {
-                            ...permission,
-                            canton: permission.cantones[0]
-                          };
-                          setSelectedPermission(firstPermission);
-                          setShowEditModal(true);
-                        }}
-                        className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 mr-4"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleRevokePermission(permission)}
-                        className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        Revocar
-                      </button>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            const firstPermission: CantonPermission = {
+                              ...permission,
+                              canton: permission.cantones[0]
+                            };
+                            setSelectedPermission(firstPermission);
+                            setShowEditModal(true);
+                          }}
+                          className="inline-flex items-center p-1.5 sm:p-2 rounded-lg transition-colors
+                                   text-blue-600 hover:text-blue-700 hover:bg-blue-50
+                                   dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/50"
+                        >
+                          <PencilIcon className="h-4 w-4" />
+                          <span className="hidden sm:inline ml-1">Editar</span>
+                        </button>
+                        <button
+                          onClick={() => handleRevokePermission(permission)}
+                          className="inline-flex items-center p-1.5 sm:p-2 rounded-lg transition-colors
+                                   text-red-600 hover:text-red-700 hover:bg-red-50
+                                   dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/50"
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                          <span className="hidden sm:inline ml-1">Revocar</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { PencilIcon, CheckCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { ArrowCircleRightIcon, AtSymbolIcon, UserIcon, AcademicCapIcon, CameraIcon } from '../../components/icons/CustomIcons';
+import { ArrowCircleRightIcon, AtSymbolIcon, UserIcon, AcademicCapIcon, CameraIcon, TrashIcon } from '../../components/icons/CustomIcons';
 import { showToast } from '../../utils/toast';
 import { getPhotoUrl } from '../../utils/urls';
 import api from '../../services/api';
@@ -128,6 +128,30 @@ export const ProfilePage = () => {
     // Activar modo de edición si no está activo
     if (!isEditing) {
       setIsEditing(true);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    try {
+      setLoading(true);
+      setIsUpdating(true);
+      setShowContent(false);
+
+      const response = await api.delete('/users/me/photo');
+      if (response.data) {
+        await updateUser(response.data.user);
+        showToast.success('Foto Eliminada', 'La foto de perfil ha sido eliminada exitosamente');
+      }
+    } catch (error: any) {
+      console.error('Error al eliminar foto de perfil:', error);
+      showToast.error(
+        'Error al Eliminar',
+        error.response?.data?.message || 'No se pudo eliminar la foto de perfil'
+      );
+    } finally {
+      setLoading(false);
+      setIsUpdating(false);
+      setShowContent(true);
     }
   };
 
@@ -267,26 +291,28 @@ export const ProfilePage = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="max-w-5xl mx-auto space-y-6"
+        className="max-w-5xl mx-auto p-2 sm:p-4 space-y-4 sm:space-y-6 mb-16 sm:mb-20"
       >
         {/* Encabezado del perfil */}
-        <div className="bg-white/70 dark:bg-[#172133] backdrop-blur-xl rounded-2xl shadow-xl 
-                     border border-white/50 dark:border-gray-700/30 p-8 relative
+        <div className={`bg-white/70 dark:bg-[#172133] backdrop-blur-xl rounded-xl sm:rounded-2xl shadow-xl 
+                     border border-white/50 dark:border-gray-700/30 
+                     p-3 sm:p-6 md:p-8 relative
                      hover:shadow-2xl hover:bg-white/80 dark:hover:bg-[#172133]/95
-                     transition-all duration-300">
-          <div className="absolute top-8 right-8 flex gap-2">
+                     transition-all duration-300
+                     ${!isEditing ? 'pb-8 sm:pb-12 mb-4 sm:mb-8' : 'pb-12 sm:pb-16 mb-16 sm:mb-24'}`}>
+          <div className="absolute top-3 sm:top-6 md:top-8 right-3 sm:right-6 md:right-8 flex flex-col sm:flex-row gap-2 w-full sm:w-auto px-3 sm:px-0">
             {isEditing && (
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleCancel}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
+                className="inline-flex items-center justify-center gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium
                          text-gray-700 dark:text-gray-200 
                          bg-gray-100 dark:bg-gray-800
                          hover:bg-gray-200 dark:hover:bg-gray-700
                          border border-gray-200/50 dark:border-gray-700/50
                          shadow-lg shadow-gray-200/20 dark:shadow-none
-                         transition-all duration-200"
+                         transition-all duration-200 w-full sm:w-auto"
               >
                 <XMarkIcon className="h-4 w-4" />
                 <span>Cancelar</span>
@@ -297,7 +323,7 @@ export const ProfilePage = () => {
               whileTap={{ scale: 0.95 }}
               onClick={isEditing ? handleSubmit : () => setIsEditing(true)}
               disabled={loading}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium
+              className={`inline-flex items-center justify-center gap-2 px-2 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium w-full sm:w-auto
                        ${isEditing 
                          ? 'text-white bg-primary-500 hover:bg-primary-600 border-primary-400'
                          : 'text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1d2842] hover:bg-gray-50 dark:hover:bg-[#1d2842]/80 border-gray-200/50 dark:border-gray-700/50'
@@ -326,69 +352,82 @@ export const ProfilePage = () => {
           </div>
 
           {/* Información principal */}
-          <div className="flex items-start gap-8">
+          <div className={`flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 
+                          ${!isEditing ? 'mt-16 sm:mt-8' : 'mt-24 sm:mt-12'}`}>
             {/* Avatar con efecto de hover mejorado */}
-            <div className="relative group">
-              <div className="h-28 w-28 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600
-                            dark:from-primary-500/20 dark:to-primary-600/20
-                            flex items-center justify-center overflow-hidden
-                            ring-4 ring-white dark:ring-primary-500/10 shadow-xl
-                            transition-all duration-300 group-hover:scale-105
-                            group-hover:shadow-2xl group-hover:ring-primary-500/30">
-                {(formData.tempPhotoUrl || user?.photoUrl) ? (
-                  <img
-                    src={formData.tempPhotoUrl || getPhotoUrl(user?.photoUrl)}
-                    alt={user?.nombre || 'Usuario'}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.nombre || 'U')}&background=6366f1&color=fff`;
-                    }}
-                  />
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative w-32 h-32 rounded-xl overflow-hidden bg-[#4F46E5] text-white 
+                            transform transition-all duration-300 ease-in-out
+                            hover:shadow-xl hover:shadow-primary-500/20 dark:hover:shadow-primary-400/20
+                            hover:-translate-y-1 hover:scale-105
+                            cursor-pointer">
+                {(user?.photoUrl || formData.tempPhotoUrl) ? (
+                  <>
+                    <img
+                      src={formData.tempPhotoUrl || getPhotoUrl(user?.photoUrl)}
+                      alt={user?.nombre || 'Usuario'}
+                      className="w-full h-full object-cover transform transition-transform duration-300 hover:scale-110"
+                      onError={(e) => {
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.nombre || 'U')}&background=4F46E5&color=fff&size=128`;
+                      }}
+                    />
+                  </>
                 ) : (
-                  <span className="text-4xl text-white font-medium transition-all duration-300 group-hover:scale-110">
-                {user?.nombre?.charAt(0).toUpperCase()}
-              </span>
+                  <div className="w-full h-full flex items-center justify-center text-4xl font-medium
+                                 transform transition-all duration-300 hover:scale-110">
+                    {user?.nombre ? user.nombre.charAt(0).toUpperCase() : 'U'}
+                  </div>
                 )}
-                <div className="absolute inset-0 flex items-center justify-center
-                              bg-black/60 backdrop-blur-sm opacity-0 group-hover:opacity-100
-                              transition-all duration-200 cursor-pointer">
-                  {isEditing && (
-                    <label className="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer">
-                      <CameraIcon className="w-6 h-6 text-white" />
-                      <span className="text-white text-sm font-medium text-center px-2">
-                        {formData.tempPhotoUrl ? 'Haga clic para cambiar' : 'Haga clic para subir foto'}
-                      </span>
+                
+                {/* Mostrar el icono de la cámara siempre que esté en modo edición */}
+                {isEditing && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <label
+                      htmlFor="photo-upload"
+                      className="flex items-center justify-center w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 
+                                cursor-pointer transition-all duration-300 group"
+                    >
+                      <CameraIcon className="w-5 h-5 text-white transform transition-transform duration-300 group-hover:scale-110" />
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/gif"
-                        onChange={handlePhotoUpload}
+                        id="photo-upload"
                         className="hidden"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
                       />
                     </label>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
-              {!isEditing && user?.photoUrl && (
-                <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full
-                              bg-white dark:bg-[#1d2842]
-                              border border-gray-200/50 dark:border-gray-700/50
-                              shadow-lg shadow-gray-200/20 dark:shadow-none
-                              transition-all duration-200 hover:scale-110
-                              hover:bg-primary-50 dark:hover:bg-primary-900/20">
-                  <CameraIcon className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </div>
+              
+              {/* Botón de eliminar foto separado */}
+              {isEditing && (user?.photoUrl || formData.tempPhotoUrl) && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleDeletePhoto}
+                  disabled={loading}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                            text-red-600 dark:text-red-400 
+                            bg-red-50 dark:bg-red-500/10
+                            hover:bg-red-100 dark:hover:bg-red-500/20
+                            border border-red-200 dark:border-red-500/20
+                            transition-all duration-300"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                  <span>Eliminar foto</span>
+                </motion.button>
               )}
             </div>
             
             {/* Información básica */}
-            <div>
+            <div className="text-center sm:text-left">
               <motion.h1 
                 whileHover={{ scale: 1.02 }}
-                className="text-2xl font-bold text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-300">
+                className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-300">
                 {user?.nombre || 'Usuario'}
               </motion.h1>
-              <div className="mt-2 flex items-center gap-3">
+              <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3">
                 <motion.span 
                   whileHover={{ scale: 1.05 }}
                   className="px-3 py-1.5 rounded-lg text-xs font-medium
@@ -410,9 +449,9 @@ export const ProfilePage = () => {
                   {user?.isActive ? 'Activo' : 'Inactivo'}
                 </motion.span>
               </div>
-              <motion.p 
+              <motion.p
                 whileHover={{ scale: 1.02 }}
-                className="mt-3 text-gray-600 dark:text-gray-400 flex items-center gap-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-300">
+                className="mt-3 text-gray-600 dark:text-gray-400 flex items-center justify-center sm:justify-start gap-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-300">
                 <span className="inline-block p-1 rounded-md bg-gray-100 dark:bg-gray-700/30">
                   <AtSymbolIcon className="w-4 h-4" />
                 </span>
@@ -422,9 +461,11 @@ export const ProfilePage = () => {
           </div>
 
           {/* Secciones de información */}
-          <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8
+                          transition-all duration-300 ease
+                          ${!isEditing ? 'mt-4 sm:mt-6' : 'mt-6 sm:mt-8'}`}>
             {/* Información Personal */}
-            <div className="space-y-5">
+            <div className="space-y-4 sm:space-y-5">
               <motion.h3 
                 whileHover={{ scale: 1.02 }}
                 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-300">
@@ -450,7 +491,7 @@ export const ProfilePage = () => {
                       name="nombre"
                       value={formData.nombre}
                       onChange={handleInputChange}
-                      className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                      className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                bg-white dark:bg-[#1d2842]
                                border border-gray-300 dark:border-gray-700
                                text-gray-900 dark:text-white
@@ -484,7 +525,7 @@ export const ProfilePage = () => {
                       name="cedula"
                       value={formData.cedula}
                       onChange={handleInputChange}
-                      className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                      className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                bg-white dark:bg-[#1d2842]
                                border border-gray-300 dark:border-gray-700
                                text-gray-900 dark:text-white
@@ -518,7 +559,7 @@ export const ProfilePage = () => {
                       name="telefono"
                       value={formData.telefono}
                       onChange={handleInputChange}
-                      className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                      className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                bg-white dark:bg-[#1d2842]
                                border border-gray-300 dark:border-gray-700
                                text-gray-900 dark:text-white
@@ -539,7 +580,7 @@ export const ProfilePage = () => {
             </div>
 
             {/* Información Académica/Profesional */}
-            <div className="space-y-5">
+            <div className="space-y-4 sm:space-y-5">
               <motion.h3 
                 whileHover={{ scale: 1.02 }}
                 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-300">
@@ -548,7 +589,7 @@ export const ProfilePage = () => {
                 </span>
                 Información Académica/Profesional
               </motion.h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="p-4 rounded-xl bg-gray-50/50 dark:bg-[#1d2842]/50
                               backdrop-blur-sm group
                               border border-gray-200/50 dark:border-gray-700/30
@@ -564,7 +605,7 @@ export const ProfilePage = () => {
                       name="estadoProfesional"
                       value={formData.estadoProfesional || ''}
                       onChange={handleInputChange}
-                      className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                      className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                bg-white dark:bg-[#1d2842]
                                border border-gray-300 dark:border-gray-700
                                text-gray-900 dark:text-white
@@ -602,7 +643,7 @@ export const ProfilePage = () => {
                         name="universidad"
                         value={formData.universidad || ''}
                         onChange={handleInputChange}
-                        className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                        className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                  bg-white dark:bg-[#1d2842]
                                  border border-gray-300 dark:border-gray-700
                                  text-gray-900 dark:text-white
@@ -638,7 +679,7 @@ export const ProfilePage = () => {
                         name="numeroMatricula"
                         value={formData.numeroMatricula || ''}
                         onChange={handleInputChange}
-                        className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                        className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                  bg-white dark:bg-[#1d2842]
                                  border border-gray-300 dark:border-gray-700
                                  text-gray-900 dark:text-white
@@ -651,8 +692,8 @@ export const ProfilePage = () => {
                       <motion.p 
                         whileHover={{ scale: 1.01 }}
                         className="mt-1.5 text-sm text-gray-900 dark:text-white font-medium group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-300">
-                        {user?.numeroMatricula || 'No especificado'}
-                      </motion.p>
+                          {user?.numeroMatricula || 'No especificado'}
+                        </motion.p>
                     )}
                   </div>
                 )}
@@ -673,7 +714,7 @@ export const ProfilePage = () => {
                       name="domicilio"
                       value={formData.domicilio || ''}
                       onChange={handleInputChange}
-                      className="mt-1.5 w-full px-3.5 py-2.5 rounded-lg text-sm
+                      className="mt-1.5 w-full px-2.5 sm:px-3.5 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm
                                bg-white dark:bg-[#1d2842]
                                border border-gray-300 dark:border-gray-700
                                text-gray-900 dark:text-white

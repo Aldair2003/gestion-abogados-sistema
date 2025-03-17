@@ -34,10 +34,11 @@ export const AssignPermissionModal = ({
 
   const resourcesList = Array.isArray(resources) ? resources : [];
   
+  // Asegurarse de que los recursos tengan el formato correcto
   const resourceOptions = resourcesList.map(resource => ({
-    value: resource.id,
+    value: resource.id.toString(),
     label: resource.nombre,
-    provincia: resource.provincia
+    provincia: resource.provincia || ''
   }));
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -94,7 +95,12 @@ export const AssignPermissionModal = ({
     menu: (base: any) => ({
       ...base,
       backgroundColor: isDarkMode ? 'rgb(31, 41, 55)' : 'white',
-      border: isDarkMode ? '1px solid rgb(75, 85, 99)' : '1px solid rgb(209, 213, 219)'
+      border: isDarkMode ? '1px solid rgb(75, 85, 99)' : '1px solid rgb(209, 213, 219)',
+      zIndex: 9999
+    }),
+    menuPortal: (base: any) => ({
+      ...base,
+      zIndex: 9999
     }),
     option: (base: any, state: any) => ({
       ...base,
@@ -149,6 +155,7 @@ export const AssignPermissionModal = ({
       isOpen={isOpen}
       onClose={onClose}
       title={`Asignar Permiso de ${getResourceLabel()}`}
+      size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
@@ -159,6 +166,7 @@ export const AssignPermissionModal = ({
               value={selectedUser}
               onChange={(e) => setSelectedUser(e.target.value)}
               required
+              className="w-full"
             >
               <option value="">Seleccione un colaborador</option>
               {users.map((user) => (
@@ -170,7 +178,7 @@ export const AssignPermissionModal = ({
           </div>
 
           {/* Selector de Cantones con React Select */}
-          <div>
+          <div className="w-full">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {getResourceLabel()}
             </label>
@@ -181,9 +189,10 @@ export const AssignPermissionModal = ({
               placeholder={`Seleccione ${type === 'canton' ? 'cantones' : 'personas'}...`}
               noOptionsMessage={() => `No hay ${type === 'canton' ? 'cantones' : 'personas'} disponibles`}
               onChange={handleResourceChange}
+              className="w-full"
               formatOptionLabel={({ label, provincia }) => (
-                <div className="flex items-center justify-between">
-                  <span>{label}</span>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                  <span className="text-sm font-medium">{label}</span>
                   {provincia && (
                     <span className="text-xs text-gray-400">
                       {provincia}
@@ -191,36 +200,42 @@ export const AssignPermissionModal = ({
                   )}
                 </div>
               )}
+              menuPortalTarget={document.body}
+              menuPosition="fixed"
             />
           </div>
 
           {/* Permisos */}
-          <div>
+          <div className="w-full">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Permisos
             </label>
-            <div className="space-y-2">
-              <div className="flex items-center">
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  El colaborador tendrá permiso de visualización de los {type === 'canton' ? 'cantones' : 'personas'} seleccionados
-                </span>
+            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                El colaborador tendrá permiso de visualización de los {type === 'canton' ? 'cantones' : 'personas'} seleccionados
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border 
+                     border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 
+                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500
+                     dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={!selectedUser || selectedResources.length === 0}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 border border-transparent rounded-md shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-white bg-primary-600 
+                     border border-transparent rounded-lg shadow-sm hover:bg-primary-700 
+                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 
+                     disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Asignar Permiso
           </button>

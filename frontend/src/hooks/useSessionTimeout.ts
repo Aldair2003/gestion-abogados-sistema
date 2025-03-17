@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
@@ -8,9 +8,9 @@ import { toast } from 'react-hot-toast';
 const DEFAULT_CONFIG = {
   INACTIVITY_TIMEOUT: 60 * 60 * 1000,  // 1 hora
   WARNING_TIME: 20 * 60 * 1000,        // 20 minutos antes
-  CHECK_INTERVAL: 1000,                // Verificar cada segundo
+  CHECK_INTERVAL: 5000,                // Verificar cada 5 segundos
   EXEMPT_ROUTES: ['/login', '/register', '/forgot-password', '/reset-password'],
-  MIN_TIME_BETWEEN_CALLS: 5000,        // Tiempo mínimo entre llamadas keep-alive (5 segundos)
+  MIN_TIME_BETWEEN_CALLS: 30000,       // Tiempo mínimo entre llamadas keep-alive (30 segundos)
   TOKEN_REFRESH_THRESHOLD: 30 * 60 * 1000 // Renovar token 30 minutos antes de que expire
 };
 
@@ -41,7 +41,6 @@ export const useSessionTimeout = (config?: Partial<SessionConfig>) => {
   const [lastKeepAliveCall, setLastKeepAliveCall] = useState(0);
   const [isKeepAliveInProgress, setIsKeepAliveInProgress] = useState(false);
   const { logout } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Combinar configuración por defecto con la proporcionada
@@ -58,57 +57,44 @@ export const useSessionTimeout = (config?: Partial<SessionConfig>) => {
   }, [sessionConfig.exemptRoutes]);
 
   const handleSessionExpiration = useCallback(async () => {
+    setShowWarning(false);
+    setTimeRemaining(null);
+    setLastActivity(Date.now());
+    setLastKeepAliveCall(0);
+    setIsKeepAliveInProgress(false);
+    
     if (!isExemptRoute(location.pathname)) {
-      setShowWarning(false);
-      setTimeRemaining(null);
       toast.error('Tu sesión ha expirado por inactividad.');
       await logout();
-      navigate('/login');
     }
-  }, [logout, navigate, location.pathname, isExemptRoute]);
+  }, [logout, location.pathname, isExemptRoute]);
 
-  // Función para actualizar la actividad y renovar el token
   const updateActivity = useCallback(async () => {
     if (isExemptRoute(location.pathname)) {
-      console.log('[Session] Ruta exenta, no se actualiza actividad:', location.pathname);
       return;
     }
 
     const now = Date.now();
     const timeSinceLastCall = now - lastKeepAliveCall;
 
-    console.log('[Session] Tiempo desde última llamada:', Math.round(timeSinceLastCall / 1000), 'segundos');
-
-    if (timeSinceLastCall < DEFAULT_CONFIG.MIN_TIME_BETWEEN_CALLS) {
-      console.log('[Session] Muy pronto para otra llamada keep-alive');
-      return;
-    }
-
-    if (isKeepAliveInProgress) {
-      console.log('[Session] Ya hay una llamada keep-alive en progreso');
+    if (timeSinceLastCall < DEFAULT_CONFIG.MIN_TIME_BETWEEN_CALLS || isKeepAliveInProgress) {
       return;
     }
 
     try {
-      console.log('[Session] Iniciando llamada keep-alive');
       setIsKeepAliveInProgress(true);
       setLastKeepAliveCall(now);
       
       const response = await api.post('/users/keep-alive');
       if (response.data?.token) {
-        console.log('[Session] Token renovado exitosamente');
         localStorage.setItem('token', response.data.token);
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       }
       setLastActivity(now);
       setShowWarning(false);
       setTimeRemaining(null);
-    } catch (error: any) {
-      console.error('[Session] Error al actualizar actividad:', error);
-      console.log('[Session] Código de estado:', error?.response?.status);
-      console.log('[Session] Mensaje de error:', error?.response?.data);
-      if (error?.response?.status === 401) {
-        console.log('[Session] Token expirado o inválido, cerrando sesión');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('401')) {
         await handleSessionExpiration();
       }
     } finally {
@@ -116,85 +102,46 @@ export const useSessionTimeout = (config?: Partial<SessionConfig>) => {
     }
   }, [location.pathname, handleSessionExpiration, isExemptRoute, lastKeepAliveCall, isKeepAliveInProgress]);
 
-  // Crear versión debounced de updateActivity
-  const debouncedUpdateActivity = useMemo(
-    () => debounce(updateActivity, DEFAULT_CONFIG.MIN_TIME_BETWEEN_CALLS),
-    [updateActivity]
-  );
-
-  // Monitorear actividad del usuario
   useEffect(() => {
+    let checkInactivityTimer: NodeJS.Timeout;
+    let initialDelay: NodeJS.Timeout;
+    
     if (isExemptRoute(location.pathname)) {
-      setShowWarning(false);
-      setTimeRemaining(null);
-      return;
+      return () => {
+        if (checkInactivityTimer) clearInterval(checkInactivityTimer);
+        if (initialDelay) clearTimeout(initialDelay);
+      };
     }
 
-    const events = [
-      'mousedown',
-      'keydown',
-      'click',
-      'touchstart',
-      'mousemove',
-      'scroll'
-    ];
+    // Retrasar el inicio del monitor para evitar conflictos con la carga inicial
+    initialDelay = setTimeout(() => {
+      checkInactivityTimer = setInterval(() => {
+        const now = Date.now();
+        const timeSinceLastActivity = now - lastActivity;
+        
+        if (timeSinceLastActivity >= sessionConfig.inactivityTimeout) {
+          handleSessionExpiration();
+        } 
+        else if (timeSinceLastActivity >= (sessionConfig.inactivityTimeout - sessionConfig.warningTime)) {
+          setShowWarning(true);
+          const remainingTime = Math.ceil((sessionConfig.inactivityTimeout - timeSinceLastActivity) / 1000);
+          setTimeRemaining(remainingTime);
+        }
+        else if (timeSinceLastActivity >= (sessionConfig.inactivityTimeout - DEFAULT_CONFIG.TOKEN_REFRESH_THRESHOLD)) {
+          updateActivity();
+        }
+      }, sessionConfig.checkInterval);
+    }, 5000);
 
-    const handleActivity = () => {
-      if (!isExemptRoute(location.pathname)) {
-        debouncedUpdateActivity();
-      }
+    const cleanup = () => {
+      if (checkInactivityTimer) clearInterval(checkInactivityTimer);
+      if (initialDelay) clearTimeout(initialDelay);
     };
 
-    events.forEach(event => {
-      window.addEventListener(event, handleActivity, { passive: true });
-    });
-
+    window.addEventListener('beforeunload', cleanup);
     return () => {
-      events.forEach(event => {
-        window.removeEventListener(event, handleActivity);
-      });
-    };
-  }, [debouncedUpdateActivity, location.pathname, isExemptRoute]);
-
-  // Monitor de inactividad y renovación de token
-  useEffect(() => {
-    if (isExemptRoute(location.pathname)) {
-      console.log('[Session] Monitor no activo en ruta exenta:', location.pathname);
-      return;
-    }
-
-    console.log('[Session] Iniciando monitor de inactividad');
-
-    const checkInactivity = setInterval(() => {
-      if (isExemptRoute(location.pathname)) {
-        return;
-      }
-
-      const now = Date.now();
-      const timeSinceLastActivity = now - lastActivity;
-      console.log('[Session] Tiempo de inactividad:', Math.round(timeSinceLastActivity / 1000), 'segundos');
-      
-      if (timeSinceLastActivity >= sessionConfig.inactivityTimeout) {
-        console.log('[Session] Tiempo de inactividad excedido, cerrando sesión');
-        clearInterval(checkInactivity);
-        handleSessionExpiration();
-      } 
-      else if (timeSinceLastActivity >= (sessionConfig.inactivityTimeout - sessionConfig.warningTime)) {
-        console.log('[Session] Mostrando advertencia de sesión');
-        setShowWarning(true);
-        const remainingTime = Math.ceil((sessionConfig.inactivityTimeout - timeSinceLastActivity) / 1000);
-        console.log('[Session] Tiempo restante:', remainingTime, 'segundos');
-        setTimeRemaining(remainingTime);
-      }
-      else if (timeSinceLastActivity >= (sessionConfig.inactivityTimeout - DEFAULT_CONFIG.TOKEN_REFRESH_THRESHOLD)) {
-        console.log('[Session] Iniciando renovación preventiva del token');
-        updateActivity();
-      }
-    }, sessionConfig.checkInterval || DEFAULT_CONFIG.CHECK_INTERVAL);
-
-    return () => {
-      console.log('[Session] Limpiando monitor de inactividad');
-      clearInterval(checkInactivity);
+      cleanup();
+      window.removeEventListener('beforeunload', cleanup);
     };
   }, [lastActivity, sessionConfig, handleSessionExpiration, location.pathname, isExemptRoute, updateActivity]);
 
@@ -204,10 +151,5 @@ export const useSessionTimeout = (config?: Partial<SessionConfig>) => {
     }
   }, [updateActivity, location.pathname, isExemptRoute]);
 
-  return {
-    showWarning,
-    timeRemaining,
-    extendSession,
-    updateActivity
-  };
+  return { showWarning, timeRemaining, extendSession };
 }; 

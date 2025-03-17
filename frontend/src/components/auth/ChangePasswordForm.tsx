@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnboarding } from '../../hooks/useOnboarding';
 import { toast } from 'react-hot-toast';
 import { CheckCircleIcon } from '@heroicons/react/24/outline';
 
@@ -39,6 +40,8 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { user, updateUser } = useAuth();
+  const { onboardingStatus, refreshStatus } = useOnboarding();
+  
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormValues>({
     resolver: zodResolver(passwordSchema),
     defaultValues: {
@@ -56,22 +59,32 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
         newPassword: data.newPassword
       });
 
-      if (response.data) {
-        // Actualizar el estado del usuario
-        if (user) {
-          const updatedUser = {
-            ...user,
-            isTemporaryPassword: false
-          };
-          await updateUser(updatedUser);
-        }
-
-        reset();
-        toast.success('Contraseña actualizada exitosamente');
-        if (onPasswordChanged) {
-          onPasswordChanged();
-        }
+      // Actualizar el token en el localStorage y en el cliente API
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
       }
+
+      // Actualizar el estado del usuario
+      if (user) {
+        const updatedUser = {
+          ...user,
+          isTemporaryPassword: false,
+          isFirstLogin: false
+        };
+        await updateUser(updatedUser);
+      }
+
+      // Actualizar el estado de onboarding
+      await refreshStatus();
+
+      reset();
+      if (onPasswordChanged) {
+        onPasswordChanged();
+      }
+
+      // Mostrar mensaje de éxito y continuar con el flujo
+      toast.success('Contraseña actualizada exitosamente');
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || 'Error al cambiar la contraseña';
       toast.error(errorMessage);
@@ -80,7 +93,7 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
     }
   };
 
-  if (isCompleted) {
+  if (isCompleted && !onboardingStatus?.pendingSteps.requiresPasswordChange) {
     return (
       <div className="flex flex-col items-center justify-center py-4">
         <div className={`${compact ? 'w-8 h-8' : 'w-12 h-12'} rounded-full bg-green-100 flex items-center justify-center mb-3`}>
@@ -110,20 +123,19 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
             <input
               type={showCurrentPassword ? "text" : "password"}
               {...register('currentPassword')}
+              defaultValue="Temporal12345@"
               className={`block w-full pl-10 pr-10 py-2 text-sm
                 border ${errors.currentPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} 
                 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
                 bg-white/70 dark:bg-gray-900/70
                 text-gray-900 dark:text-white
-                placeholder-gray-500 dark:placeholder-gray-400
-                cursor-not-allowed opacity-75`}
+                placeholder-gray-500 dark:placeholder-gray-400`}
               placeholder="Contraseña Temporal"
-              readOnly
             />
             <button
               type="button"
               onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              className={`absolute inset-y-0 right-0 pr-3 flex items-center ${showCurrentPassword ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-gray-600'}`}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
             >
               {showCurrentPassword ? (
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -156,7 +168,7 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
               className={`block w-full pl-10 pr-10 py-2 text-sm
                 border ${errors.newPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} 
                 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
-                bg-white/70 dark:bg-gray-900/70
+                bg-white dark:bg-gray-900
                 text-gray-900 dark:text-white
                 placeholder-gray-500 dark:placeholder-gray-400`}
               placeholder="Nueva Contraseña"
@@ -164,7 +176,7 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
             <button
               type="button"
               onClick={() => setShowNewPassword(!showNewPassword)}
-              className={`absolute inset-y-0 right-0 pr-3 flex items-center ${showNewPassword ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-gray-600'}`}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
             >
               {showNewPassword ? (
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
@@ -197,7 +209,7 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
               className={`block w-full pl-10 pr-10 py-2 text-sm
                 border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-200 dark:border-gray-700'} 
                 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
-                bg-white/70 dark:bg-gray-900/70
+                bg-white dark:bg-gray-900
                 text-gray-900 dark:text-white
                 placeholder-gray-500 dark:placeholder-gray-400`}
               placeholder="Confirmar Nueva Contraseña"
@@ -205,7 +217,7 @@ export const ChangePasswordForm: React.FC<ChangePasswordFormProps> = ({
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className={`absolute inset-y-0 right-0 pr-3 flex items-center ${showConfirmPassword ? 'text-indigo-600 hover:text-indigo-700' : 'text-gray-400 hover:text-gray-600'}`}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
             >
               {showConfirmPassword ? (
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">

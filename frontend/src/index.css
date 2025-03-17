@@ -92,6 +92,10 @@
     background: transparent !important;
     -webkit-appearance: none !important;
   }
+
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
 }
 
 /* Estilos base */

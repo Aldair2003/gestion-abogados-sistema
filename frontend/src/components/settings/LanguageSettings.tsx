@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLanguage } from '../../context/LanguageContext';
 import { GlobeAltIcon } from '../icons/SettingsIcons';
+import { motion } from 'framer-motion';
 
 export const LanguageSettings: React.FC = () => {
   const { currentLanguage, changeLanguage, t } = useLanguage();
@@ -16,39 +17,43 @@ export const LanguageSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-serif font-semibold text-gray-900 dark:text-white mb-2">
-          {t('settings.language.title')}
-        </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          {t('settings.language.description')}
-        </p>
-      </div>
+    <div className="space-y-8 sm:space-y-10">
+      <section>
+        <div className="mb-4 sm:mb-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+            {t('settings.language.title')}
+          </h3>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            {t('settings.language.description')}
+          </p>
+        </div>
 
-      <div className="space-y-3">
-        {languages.map(({ code, label, flag }) => (
-          <button
-            key={code}
-            onClick={() => handleLanguageChange(code)}
-            className={`w-full flex items-center justify-between p-4 rounded-lg transition-all duration-200
-              ${currentLanguage === code 
-                ? 'bg-primary-100 text-primary-700 ring-2 ring-primary-500 dark:bg-primary-500/20 dark:text-primary-400 dark:ring-primary-500/50' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-[#1e2330] dark:text-gray-400 dark:hover:bg-[#252b3b]'}`}
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-lg">{flag}</span>
-              <span className="font-medium">{label}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {languages.map(({ code, label, flag }) => (
+            <motion.button
+              key={code}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleLanguageChange(code)}
+              className={`relative flex items-center gap-3 p-3 sm:p-4 rounded-xl transition-all duration-200
+                ${currentLanguage === code 
+                  ? 'bg-white text-primary-700 ring-2 ring-primary-500 shadow-lg shadow-primary-500/10 dark:bg-primary-500/10 dark:text-primary-300 dark:ring-primary-400' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600'}`}
+            >
+              <div className="flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-lg bg-primary-50 dark:bg-primary-500/20">
+                <span className="text-lg sm:text-xl">{flag}</span>
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-sm sm:text-base font-medium">{label}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-300">{code.toUpperCase()}</div>
+              </div>
               {currentLanguage === code && (
-                <span className="text-xs px-2 py-1 rounded-full bg-primary-500/10 text-primary-600 dark:bg-primary-400/10 dark:text-primary-400">
-                  {t('settings.language.active')}
-                </span>
+                <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary-500 dark:bg-primary-400" />
               )}
-            </div>
-            <GlobeAltIcon className="h-5 w-5" />
-          </button>
-        ))}
-      </div>
+            </motion.button>
+          ))}
+        </div>
+      </section>
 
       <p className="text-sm text-gray-500 dark:text-gray-400 italic mt-4">
         {t('settings.language.note')}

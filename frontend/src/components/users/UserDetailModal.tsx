@@ -94,21 +94,24 @@ export const UserDetailModal = ({ isOpen, onClose, user, loading }: UserDetailMo
             {/* Header */}
             <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 dark:border-gray-800">
               <div className="flex items-center gap-5">
-                <div className="h-12 w-12 rounded-full bg-indigo-50 dark:bg-indigo-900/50 overflow-hidden flex items-center justify-center">
-                  {user.photoUrl && !imageError ? (
-                    <img 
-                      src={getPhotoUrl(user.photoUrl)}
-                      alt={`Foto de ${user.nombre || 'usuario'}`}
-                      className="h-full w-full object-cover"
-                      onError={handleImageError}
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-indigo-600">
-                      <span className="text-lg font-medium text-white">
-                        {(user.nombre?.trim() || user.email?.trim() || '?').charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                  )}
+                <div className="relative h-12 w-12 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
+                              ring-2 ring-primary-500/20 dark:ring-primary-500/30">
+                  {(() => {
+                    return user.photoUrl && !imageError ? (
+                      <img 
+                        src={getPhotoUrl(user.photoUrl)}
+                        alt={`Foto de ${user.nombre || 'usuario'}`}
+                        className="h-full w-full object-cover"
+                        onError={handleImageError}
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-[#4F46E5] text-white font-medium">
+                        <span className="text-lg">
+                          {(user.nombre?.trim() || user.email?.trim() || '?').charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div>
                   <Dialog.Title className="text-xl font-semibold text-gray-900 dark:text-white">

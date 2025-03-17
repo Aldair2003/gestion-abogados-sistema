@@ -8,7 +8,6 @@ import {
   UsersIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-
 } from '@heroicons/react/24/outline';
 
 import DatePicker, { registerLocale } from 'react-datepicker';
@@ -48,7 +47,7 @@ interface UsersFiltersProps {
 
 export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => {
   const handleClearFilters = () => {
-      onFilterChange({
+    onFilterChange({
       search: '',
       rol: '',
       isActive: '',
@@ -72,11 +71,11 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
     showPopperArrow: false,
     formatWeekDay: (nameOfDay: string) => nameOfDay.substring(0, 2),
     renderCustomHeader: ({
-    date,
-    decreaseMonth,
-    increaseMonth,
-    prevMonthButtonDisabled,
-    nextMonthButtonDisabled
+      date,
+      decreaseMonth,
+      increaseMonth,
+      prevMonthButtonDisabled,
+      nextMonthButtonDisabled
     }: DatePickerHeaderProps) => (
       <div className="flex items-center justify-between px-2">
         <button
@@ -109,20 +108,20 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
       className="w-full bg-white dark:bg-[#172133] rounded-2xl shadow-lg 
                  border border-gray-200 dark:border-gray-700/30 mb-6 relative z-10"
     >
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Encabezado y barra de búsqueda */}
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-gradient-to-br from-primary-500/10 to-primary-600/10 
                             rounded-xl shadow-inner shadow-primary-500/10">
                 <MagnifyingGlassIcon className="h-5 w-5 text-primary-500" />
-        </div>
+              </div>
               <h2 className="text-base font-semibold bg-gradient-to-r from-gray-900 to-gray-600 
                            dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
                 Filtros de búsqueda
               </h2>
-      </div>
+            </div>
             {hasActiveFilters && (
               <motion.button
                 initial={{ opacity: 0, scale: 0.5 }}
@@ -130,7 +129,7 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleClearFilters}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium
+                className="flex items-center justify-center sm:justify-start gap-2 px-3 py-1.5 rounded-xl text-sm font-medium
                          bg-gradient-to-r from-red-500/10 to-red-600/10
                          dark:from-red-500/20 dark:to-red-600/20
                          border border-red-200/50 dark:border-red-500/30
@@ -140,7 +139,8 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
                          hover:border-red-500/50 dark:hover:border-red-500/50
                          hover:text-red-800 dark:hover:text-red-300
                          shadow-sm hover:shadow-md hover:shadow-red-500/10
-                         transition-all duration-300"
+                         transition-all duration-300
+                         w-full sm:w-auto"
               >
                 <XMarkIcon className="h-4 w-4" />
                 <span>Limpiar filtros</span>
@@ -169,7 +169,7 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
         </div>
 
         {/* Filtros principales en grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {/* Columna izquierda: Rol y Estado */}
           <div className="space-y-4">
             <div>
@@ -227,7 +227,7 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
                 <CalendarIcon className="h-3.5 w-3.5" />
                 Fecha de registro
               </label>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="flex-1">
                   <DatePicker
                     selected={filters.createdAtStart}
@@ -266,21 +266,21 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
                              transition-all duration-300"
                     {...commonDatePickerProps}
                   />
-          </div>
-        </div>
-      </div>
+                </div>
+              </div>
+            </div>
 
-      {/* Último acceso */}
+            {/* Último acceso */}
             <div className="space-y-2">
               <label className="flex items-center gap-1.5 text-xs font-medium 
                               text-gray-600 dark:text-gray-400 mb-1.5">
                 <ClockIcon className="h-3.5 w-3.5" />
-          Último acceso
-        </label>
-              <div className="flex gap-2">
+                Último acceso
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="flex-1">
                   <DatePicker
-              selected={filters.lastLoginStart}
+                    selected={filters.lastLoginStart}
                     onChange={(date: Date | null) => onFilterChange({ lastLoginStart: date })}
                     selectsStart
                     startDate={filters.lastLoginStart || undefined}
@@ -296,10 +296,10 @@ export const UsersFilters = ({ filters, onFilterChange }: UsersFiltersProps) => 
                              transition-all duration-300"
                     {...commonDatePickerProps}
                   />
-          </div>
+                </div>
                 <div className="flex-1">
                   <DatePicker
-              selected={filters.lastLoginEnd}
+                    selected={filters.lastLoginEnd}
                     onChange={(date: Date | null) => onFilterChange({ lastLoginEnd: date })}
                     selectsEnd
                     startDate={filters.lastLoginStart || undefined}

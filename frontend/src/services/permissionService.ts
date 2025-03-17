@@ -59,7 +59,8 @@ export const permissionService = {
         createdAt: canton.createdAt || new Date().toISOString(),
         updatedAt: canton.updatedAt || new Date().toISOString(),
         totalJueces: canton.totalJueces || 0,
-        totalPersonas: canton.totalPersonas || 0
+        totalPersonas: canton.totalPersonas || 0,
+        totalDocumentos: canton.totalDocumentos || 0
       }));
       
       console.log('Cantones asignados formateados:', formattedCantones);
@@ -121,11 +122,9 @@ export const permissionService = {
       const response = await api.get('/cantones');
       console.log('Respuesta completa de cantones:', response);
       
-      // Extraer el array de cantones de la estructura de paginación
       const cantones = response.data?.data?.cantones || [];
       console.log('Array de cantones extraído:', cantones);
       
-      // Mapear los cantones al formato esperado
       const formattedCantones = cantones.map((canton: any) => ({
         id: canton.id.toString(),
         nombre: canton.nombre,
@@ -135,7 +134,8 @@ export const permissionService = {
         createdAt: canton.createdAt || new Date().toISOString(),
         updatedAt: canton.updatedAt || new Date().toISOString(),
         totalJueces: canton.jueces?.length || 0,
-        totalPersonas: canton.totalPersonas || 0
+        totalPersonas: canton.totalPersonas || 0,
+        totalDocumentos: canton.totalDocumentos || 0
       }));
       
       console.log('Cantones formateados:', formattedCantones);

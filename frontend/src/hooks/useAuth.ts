@@ -11,7 +11,7 @@ export const useAuth = () => {
 
   const logout = useCallback(async () => {
     try {
-      await api.post('/users/logout');
+      await api.post('/auth/logout');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     } finally {

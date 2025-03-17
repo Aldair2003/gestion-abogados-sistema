@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useOnboarding } from '../../hooks/useOnboarding';
 import { OnboardingModal } from './OnboardingModal';
 
 export const PrivateRoute = () => {
-  const { isAuthenticated, isLoading, user, completeOnboarding } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  const { onboardingStatus, loading: onboardingLoading } = useOnboarding();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    if (user && (user.isTemporaryPassword || (user.isProfileCompleted === false && !localStorage.getItem('profileCompletedOnce')))) {
+    if (onboardingStatus && (
+      onboardingStatus.pendingSteps.requiresPasswordChange || 
+      onboardingStatus.pendingSteps.requiresProfileCompletion
+    )) {
       setShowOnboarding(true);
     } else {
       setShowOnboarding(false);
     }
-  }, [user]);
+  }, [onboardingStatus]);
 
-  if (isLoading) {
+  if (isLoading || onboardingLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
@@ -26,13 +31,7 @@ export const PrivateRoute = () => {
   return isAuthenticated ? (
     <>
       <Outlet />
-      <OnboardingModal 
-        isOpen={showOnboarding} 
-        onComplete={() => {
-          completeOnboarding();
-          localStorage.setItem('profileCompletedOnce', 'true');
-        }} 
-      />
+      <OnboardingModal isOpen={showOnboarding} />
     </>
   ) : <Navigate to="/login" replace />;
 }; 

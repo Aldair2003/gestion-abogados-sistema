@@ -1,9 +1,10 @@
 import React, { createContext, useState, useCallback, useContext, useEffect, useMemo } from 'react';
 import { User, UserRole } from '../types/user';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
+import { ScaleIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 
 // Intervalo de keep-alive (15 minutos)
 const KEEP_ALIVE_INTERVAL = 15 * 60 * 1000;
@@ -39,54 +40,72 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const storedUser = localStorage.getItem('user');
-    return storedUser ? JSON.parse(storedUser) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(() => {
     return localStorage.getItem('token');
   });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const updateUser = useCallback((userData: User | null) => {
     setUser(userData);
     if (userData) {
-      localStorage.setItem('user', JSON.stringify(userData));
+      // Actualizar el estado del usuario
+      setUser(userData);
+      
+      // Si hay un token en localStorage, mantenerlo
+      const currentToken = localStorage.getItem('token');
+      if (currentToken) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${currentToken}`;
+      }
     } else {
-      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      api.defaults.headers.common['Authorization'] = '';
     }
+  }, []);
+
+  const clearAuthState = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem('token');
+    localStorage.removeItem('tokenVersion');
+    localStorage.removeItem('user');
+    delete api.defaults.headers.common['Authorization'];
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      setIsLoading(true);
-      // Intentar hacer logout en el backend
-      await api.post('/users/logout');
+      setLoading(true);
+      
+      // Intentar registrar el logout incluso si el token está expirado
+      try {
+        await api.post('/auth/logout', {}, {
+          headers: {
+            Authorization: token ? `Bearer ${token}` : undefined
+          }
+        });
+      } catch (error) {
+        // Si falla el logout en el backend, solo lo registramos pero continuamos con el proceso
+        console.warn('[Auth] No se pudo registrar el logout en el servidor:', error);
+      }
+
+      // Siempre limpiar el estado local independientemente de los errores
+      clearAuthState();
+      navigate('/login', { replace: true });
+      toast.success('Sesión cerrada correctamente');
+      
     } catch (error) {
-      console.error('[Auth] Error al cerrar sesión en el servidor:', error);
+      console.error('[Auth] Error durante el logout:', error);
+      // Aún si hay error, limpiamos el estado local
+      clearAuthState();
+      navigate('/login', { replace: true });
     } finally {
-      // Limpiar estado local independientemente del resultado
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      setToken(null);
-      updateUser(null);
-      
-      toast.success('Has cerrado sesión exitosamente', {
-        duration: 3000,
-        position: 'top-right',
-        style: {
-          background: '#f0f9ff',
-          color: '#0369a1',
-          border: '1px solid #7dd3fc'
-        }
-      });
-      
-      navigate('/login');
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [updateUser, navigate]);
+  }, [navigate, clearAuthState, token]);
 
   const verifyToken = useCallback(async (currentToken: string) => {
     try {
@@ -97,133 +116,89 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.status === 200) {
         console.log('[Auth] Token válido, actualizando datos del usuario');
         const userData = response.data;
+        const needsOnboarding = userData.isTemporaryPassword || !userData.isProfileCompleted;
+        
         updateUser(userData);
         setToken(currentToken);
+        setIsAuthenticated(true);
         
-        // Asegurarnos de que el token esté configurado en axios
-        api.defaults.headers.common['Authorization'] = `Bearer ${currentToken}`;
+        if (location.pathname === '/login' && !needsOnboarding) {
+          navigate('/dashboard');
+        }
       }
     } catch (error) {
       console.error('[Auth] Error verificando token:', error);
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      setToken(null);
-      updateUser(null);
+      clearAuthState();
+      if (location.pathname !== '/login') {
+        navigate('/login');
+      }
     }
-  }, [updateUser]);
+  }, [updateUser, navigate, location.pathname, clearAuthState]);
 
+  // Efecto para verificar el token al inicio
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
-      console.log('[Auth] Token encontrado en localStorage, verificando...');
       verifyToken(storedToken);
     } else {
-      console.log('[Auth] No hay token almacenado');
-      setToken(null);
-      updateUser(null);
-    }
-  }, [verifyToken]);
-
-  const login = useCallback(async (newToken: string, userData: User) => {
-    try {
-      setIsLoading(true);
-      console.log('[Auth] Iniciando proceso de login');
-      
-      // Limpiar cualquier token anterior
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      api.defaults.headers.common['Authorization'] = '';
-      
-      // Pequeña pausa para asegurar la limpieza
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Guardar nuevo token y configurar axios
-      localStorage.setItem('token', newToken);
-      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-      setToken(newToken);
-      
-      // Actualizar datos del usuario
-      console.log('[Auth] Actualizando datos del usuario');
-      updateUser(userData);
-      
-      // Obtener datos completos del usuario
-      try {
-        const response = await api.get('/users/me');
-        if (response.status === 200) {
-          console.log('[Auth] Datos del usuario actualizados desde el servidor');
-          updateUser(response.data);
-        }
-      } catch (error) {
-        console.error('[Auth] Error al obtener datos completos del usuario:', error);
+      clearAuthState();
+      if (location.pathname !== '/login' && !location.pathname.startsWith('/public')) {
+        navigate('/login');
       }
+    }
+    setLoading(false);
+  }, [verifyToken, navigate, location.pathname, clearAuthState]);
+
+  const login = useCallback(async (token: string, userData: User) => {
+    try {
+      setLoading(true);
       
-      // Navegar al dashboard
-      console.log('[Auth] Redirigiendo al dashboard');
+      // Configurar token
+      localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      // Actualizar estado
+      updateUser(userData);
+      setIsAuthenticated(true);
+      setToken(token);
+      
+      // Notificar y redirigir
+      const needsOnboarding = userData.isTemporaryPassword || !userData.isProfileCompleted;
+      toast.success(needsOnboarding ? 'Por favor complete la configuración inicial' : 'Inicio de sesión exitoso');
       navigate('/dashboard');
       
-      toast.success('¡Bienvenido!', {
-        duration: 3000,
-        position: 'top-right'
-      });
     } catch (error) {
-      console.error('[Auth] Error en proceso de login:', error);
-      // Limpiar todo en caso de error
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      api.defaults.headers.common['Authorization'] = '';
-      setToken(null);
-      updateUser(null);
-      throw error;
+      console.error('[Auth] Error en login:', error);
+      toast.error('Error al iniciar sesión');
+      clearAuthState();
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [updateUser, navigate]);
+  }, [navigate, updateUser, clearAuthState]);
 
-  // Keep-alive handler
   const handleKeepAlive = useCallback(async () => {
-    if (!token) return;
-    
     try {
-      console.log('[Auth] Iniciando keep-alive');
       const response = await api.post('/users/keep-alive');
+      const { token, user: userData } = response.data;
       
-      if (response.data?.token) {
-        console.log('[Auth] Token renovado exitosamente');
-        localStorage.setItem('token', response.data.token);
-        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-        setToken(response.data.token);
+      // Verificar si el token version ha cambiado
+      const storedTokenVersion = localStorage.getItem('tokenVersion');
+      if (userData.tokenVersion !== Number(storedTokenVersion)) {
+        // Si el token version cambió, forzar logout
+        await logout();
+        return;
       }
-    } catch (error) {
-      console.error('[Auth] Error en keep-alive:', error);
-      
-      // Si el error es 401, intentar renovar el token
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        try {
-          const refreshToken = localStorage.getItem('refreshToken');
-          if (!refreshToken) {
-            console.error('[Auth] No hay refresh token disponible');
-            await logout();
-            return;
-          }
 
-          const response = await api.post('/users/refresh-token', { refreshToken });
-          if (response.data?.token) {
-            console.log('[Auth] Token renovado exitosamente');
-            localStorage.setItem('token', response.data.token);
-            api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-            setToken(response.data.token);
-          } else {
-            console.error('[Auth] No se recibió nuevo token');
-            await logout();
-          }
-        } catch (refreshError) {
-          console.error('[Auth] Error al renovar token:', refreshError);
-          await logout();
-        }
+      // Actualizar el token y el usuario
+      localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      updateUser(userData);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        await logout();
       }
     }
-  }, [token, logout]);
+  }, [logout, updateUser]);
 
   // Configurar el intervalo de keep-alive
   useEffect(() => {
@@ -285,14 +260,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value = useMemo(() => ({
     user,
     token,
+    updateUser,
+    isAuthenticated,
+    isLoading: loading,
+    isAdmin: user?.rol === UserRole.ADMIN,
     login,
     logout,
-    isAuthenticated: !!user,
-    isLoading,
-    isAdmin: user?.rol === UserRole.ADMIN,
-    updateUser,
     completeOnboarding
-  }), [user, token, login, logout, isLoading, updateUser, completeOnboarding]);
+  }), [user, token, updateUser, isAuthenticated, loading, login, logout, completeOnboarding]);
 
   return (
     <AuthContext.Provider value={value}>

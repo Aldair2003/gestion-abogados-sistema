@@ -74,19 +74,19 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
   return (
     <form 
       onSubmit={handleSubmit(onSubmit)} 
-      className="space-y-6"
+      className="space-y-4 sm:space-y-6"
       noValidate
     >
       {/* Campo Email */}
-      <div className="space-y-2">
+      <div className="space-y-1.5 sm:space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Correo Electrónico
         </label>
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
             <IconWrapper 
               icon={FiMail} 
-              className="h-5 w-5 text-gray-400" 
+              className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" 
               aria-hidden="true" 
             />
           </div>
@@ -99,30 +99,31 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
                 message: 'Correo electrónico inválido'
               }
             })}
-            className="block w-full pl-12 pr-4 py-3 text-base 
+            className="block w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-sm 
               border border-gray-200 dark:border-gray-700 
               rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
               bg-white/70 dark:bg-gray-900/70
               text-gray-900 dark:text-white
-              placeholder-gray-500 dark:placeholder-gray-400"
+              placeholder-gray-500 dark:placeholder-gray-400
+              transition-all duration-200"
             placeholder="ejemplo@email.com"
           />
         </div>
         {errors.email && (
-          <p className="text-sm text-red-500 pl-1">{errors.email.message}</p>
+          <p className="text-xs sm:text-sm text-red-500 pl-1">{errors.email.message}</p>
         )}
       </div>
 
       {/* Campo Contraseña */}
-      <div className="space-y-2">
+      <div className="space-y-1.5 sm:space-y-2">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Contraseña
         </label>
         <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
             <IconWrapper 
               icon={FiLock} 
-              className="h-5 w-5 text-gray-400" 
+              className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" 
               aria-hidden="true" 
             />
           </div>
@@ -131,37 +132,41 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
             {...register('password', {
               required: 'La contraseña es requerida'
             })}
-            className="block w-full pl-12 pr-12 py-3 text-base 
+            className="block w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-2.5 sm:py-3 text-sm 
               border border-gray-200 dark:border-gray-700 
               rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
               bg-white/70 dark:bg-gray-900/70
               text-gray-900 dark:text-white
-              placeholder-gray-500 dark:placeholder-gray-400"
+              placeholder-gray-500 dark:placeholder-gray-400
+              transition-all duration-200"
             placeholder="••••••••"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-0 pr-4 flex items-center"
+            className="absolute inset-y-0 right-0 pr-3 sm:pr-4 flex items-center"
           >
             <IconWrapper 
               icon={showPassword ? FiEyeOff : FiEye}
-              className="h-5 w-5 text-gray-400 hover:text-gray-600" 
+              className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 hover:text-gray-600 transition-colors" 
               aria-hidden="true"
             />
           </button>
         </div>
         {errors.password && (
-          <p className="text-sm text-red-500 pl-1">{errors.password.message}</p>
+          <p className="text-xs sm:text-sm text-red-500 pl-1">{errors.password.message}</p>
         )}
       </div>
 
       <motion.button
         type="submit"
         disabled={isLoading}
-        className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 
-          text-white font-medium rounded-lg transition-colors
-          disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-2.5 sm:py-3 px-4 sm:px-6 bg-indigo-600 hover:bg-indigo-700 
+          text-white text-sm font-medium rounded-lg transition-colors
+          disabled:opacity-50 disabled:cursor-not-allowed
+          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
       >
         {isLoading ? 'Verificando...' : 'Iniciar Sesión'}
       </motion.button>
@@ -169,7 +174,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onAccountDisabled }) => {
       <div className="text-center">
         <a
           href="/forgot-password"
-          className="text-sm text-indigo-600 hover:text-indigo-500"
+          className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-500 transition-colors"
         >
           ¿Olvidaste tu contraseña?
         </a>

@@ -78,7 +78,13 @@ const itemAnimation = {
   }
 };
 
-export const Sidebar = () => {
+interface SidebarProps {
+  isOpen?: boolean;
+  onToggle?: () => void;
+  className?: string;
+}
+
+export const Sidebar = ({ isOpen = true, onToggle, className = '' }: SidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAdmin } = useAuth();
@@ -96,9 +102,9 @@ export const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
       const saved = localStorage.getItem('sidebarCollapsed');
-      return saved ? JSON.parse(saved) : false;
+      return saved ? JSON.parse(saved) : true;
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -122,6 +128,7 @@ export const Sidebar = () => {
 
   const toggleSidebar = () => {
     setIsCollapsed((prev: boolean) => !prev);
+    onToggle?.();
   };
 
   const handleDisclosureChange = (isOpen: boolean, title: string) => {
@@ -203,118 +210,92 @@ export const Sidebar = () => {
   });
 
   return (
-    <div 
+    <motion.div
       className={`
-        relative bg-dark-800 z-[8000]
+        flex flex-col h-full bg-dark-800
         ${isCollapsed ? 'w-20' : 'w-60'}
+        ${className}
+        transition-all duration-300 ease-in-out
+        shadow-xl md:shadow-none
+        relative z-[70]
       `}
+      initial={false}
+      animate={isCollapsed ? "closed" : "open"}
+      variants={sidebarAnimation}
+      layout
     >
-      <motion.div
-        className="absolute inset-0 w-full h-full overflow-hidden bg-dark-800 z-[8000]"
-        initial={false}
-        animate={isCollapsed ? "closed" : "open"}
-        variants={sidebarAnimation}
-        layout
-      >
-        {/* Header del Sidebar con Link */}
-        <div className="h-16 flex items-center justify-center px-4 border-b border-gray-700">
-          <Link to="/dashboard" className="flex items-center w-full group">
-            <div className="flex items-center w-full">
-              <div className="relative flex justify-center">
-                <img 
-                  src={logo} 
-                  alt="M&V Abogados Logo" 
-                  className={`
-                    ${isCollapsed ? 'h-10 mx-auto' : 'h-10'} 
-                    w-auto flex-shrink-0
-                    [filter:brightness(0)_invert(1)]
-                    group-hover:[filter:brightness(0)_invert(0.8)]
-                    transition-all duration-100
-                  `}
-                />
-              </div>
-              <AnimatePresence mode="wait">
-                {!isCollapsed && (
-                  <motion.div
-                    className="ml-3 overflow-hidden flex items-center"
-                    variants={itemAnimation}
-                    initial="hidden"
-                    animate="visible"
-                    exit="hidden"
-                  >
-                    <span className="text-lg font-semibold text-white whitespace-nowrap">
-                      M&V Abogados
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+      {/* Header del Sidebar con Link */}
+      <div className="h-16 flex items-center px-4 border-b border-gray-700 relative">
+        <Link to="/dashboard" className="flex items-center group w-full">
+          <div className="flex items-center w-full">
+            <div className={`
+              relative flex justify-center
+              ${isCollapsed ? 'w-full' : 'w-10'}
+              transition-all duration-300
+            `}>
+              <img 
+                src={logo} 
+                alt="M&V Abogados Logo" 
+                className={`
+                  h-10 w-auto flex-shrink-0
+                  [filter:brightness(0)_invert(1)]
+                  group-hover:[filter:brightness(0)_invert(0.8)]
+                  transition-all duration-200
+                `}
+                style={{
+                  objectFit: 'contain',
+                  maxWidth: '100%'
+                }}
+              />
             </div>
-          </Link>
-        </div>
+            <AnimatePresence mode="wait">
+              {!isCollapsed && (
+                <motion.div
+                  className="ml-3 overflow-hidden flex items-center"
+                  variants={itemAnimation}
+                  initial="hidden"
+                  animate="visible"
+                  exit="hidden"
+                >
+                  <span className="text-lg font-semibold text-white whitespace-nowrap">
+                    M&V Abogados
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </Link>
+      </div>
 
-        {/* Contenido del Sidebar */}
-        <nav className="mt-4 px-3 pb-20">
+      {/* Contenido del Sidebar */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide py-4">
+        <nav className="space-y-1 px-3">
           {filteredMenuItems.map((item) => (
-            <div key={item.title} className="mb-2">
+            <div key={item.title}>
               {item.subItems ? (
                 <Disclosure defaultOpen={openMenus.includes(item.title)}>
                   {({ open }) => (
                     <>
                       <Disclosure.Button 
-                        className="flex items-center w-full px-4 py-2.5 text-gray-300 hover:bg-gray-700 rounded-lg transition-all"
-                        onClick={() => handleDisclosureChange(open, item.title)}
+                        className={`
+                          flex items-center w-full px-3 py-2 rounded-lg
+                          transition-colors duration-200
+                          ${open ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}
+                        `}
                       >
-                        <div className="flex items-center w-full">
-                          <div className="relative">
-                            <item.icon className={`${isCollapsed ? 'h-6 w-6' : 'h-5 w-5'} flex-shrink-0`} />
-                          </div>
-                          <AnimatePresence mode="wait">
-                            {!isCollapsed && (
-                              <motion.div
-                                className="flex items-center flex-1"
-                                variants={itemAnimation}
-                                initial="hidden"
-                                animate="visible"
-                                exit="hidden"
-                              >
-                                <span className="ml-3 flex-1 text-left">{item.title}</span>
-                                <motion.div
-                                  animate={{ rotate: open ? 180 : 0 }}
-                                  transition={{ duration: 0.1 }}
-                                >
-                                  <ChevronDownIcon className="w-5 h-5" />
-                                </motion.div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </Disclosure.Button>
-
-                      <AnimatePresence>
-                        {!isCollapsed && open && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ 
-                              opacity: 1, 
-                              height: 'auto',
-                              transition: {
-                                duration: 0.1
-                              }
-                            }}
-                            exit={{ 
-                              opacity: 0, 
-                              height: 0,
-                              transition: {
-                                duration: 0.1
-                              }
-                            }}
-                          >
-                            <div className="mt-1 ml-4 space-y-1">
-                              {renderSubItems(item.subItems)}
-                            </div>
-                          </motion.div>
+                        <item.icon className={`h-5 w-5 ${open ? 'text-white' : 'text-gray-400'}`} />
+                        {!isCollapsed && (
+                          <>
+                            <span className="ml-3 flex-1 text-left whitespace-nowrap">{item.title}</span>
+                            <ChevronDownIcon
+                              className={`${open ? 'transform rotate-180' : ''} w-5 h-5 transition-transform`}
+                            />
+                          </>
                         )}
-                      </AnimatePresence>
+                      </Disclosure.Button>
+                      <Disclosure.Panel className="mt-1 ml-2">
+                        {!isCollapsed && renderSubItems(item.subItems)}
+                      </Disclosure.Panel>
                     </>
                   )}
                 </Disclosure>
@@ -322,91 +303,49 @@ export const Sidebar = () => {
                 <button
                   onClick={() => navigate(item.path!)}
                   className={`
-                    group flex items-center w-full px-4 py-2.5 rounded-lg
+                    flex items-center w-full px-3 py-2 rounded-lg
+                    transition-colors duration-200
                     ${location.pathname === item.path
                       ? 'bg-gray-700 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
                     }
-                    transition-all duration-50
                   `}
                 >
-                  <div className="relative flex items-center">
-                    <item.icon className={`
-                      ${isCollapsed ? 'h-6 w-6' : 'h-5 w-5'} 
-                      flex-shrink-0
-                      ${location.pathname === item.path ? 'text-white' : 'text-gray-300 group-hover:text-white'}
-                      transition-all duration-50
-                    `} />
-                    {isCollapsed && item.description && (
-                      <motion.div 
-                        className="
-                          absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm
-                          rounded opacity-0 group-hover:opacity-100 pointer-events-none
-                          whitespace-nowrap z-50
-                        "
-                        initial={{ opacity: 0 }}
-                        whileHover={{ opacity: 1 }}
-                        transition={{ duration: 0.05 }}
-                      >
-                        {item.title}
-                        <div className="text-xs text-gray-400">{item.description}</div>
-                      </motion.div>
-                    )}
-                  </div>
-                  <AnimatePresence mode="sync">
-                    {!isCollapsed && (
-                      <motion.div
-                        className="ml-3 flex flex-col flex-1 text-left"
-                        variants={location.pathname === item.path ? selectedItemAnimation : itemAnimation}
-                        initial="hidden"
-                        animate="visible"
-                        exit="hidden"
-                      >
-                        <span>{item.title}</span>
-                        {item.description && (
-                          <span className="text-xs text-gray-400">{item.description}</span>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <item.icon className={`
+                    h-5 w-5
+                    ${location.pathname === item.path ? 'text-white' : 'text-gray-400'}
+                  `} />
+                  {!isCollapsed && (
+                    <span className="ml-3 whitespace-nowrap">{item.title}</span>
+                  )}
                 </button>
               )}
             </div>
           ))}
         </nav>
+      </div>
 
-        {/* Botón flotante para colapsar */}
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center">
-          <button
-            onClick={toggleSidebar}
-            className="
-              flex items-center gap-2 px-3 py-2 rounded-full
-              bg-primary-500 text-white shadow-lg
-              hover:bg-primary-600 transition-all duration-50
-            "
-          >
-            <motion.div
-              animate={{ rotate: isCollapsed ? 180 : 0 }}
-              transition={{ duration: 0.05 }}
-            >
-              <ChevronDoubleLeftIcon className="w-5 h-5" />
-            </motion.div>
-            <AnimatePresence mode="sync">
-              {!isCollapsed && (
-                <motion.span
-                  className="text-sm font-medium"
-                  variants={itemAnimation}
-                  initial="hidden"
-                  animate="visible"
-                  exit="hidden"
-                >
-                  Colapsar menú
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </button>
-        </div>
-      </motion.div>
-    </div>
+      {/* Botón de colapsar sidebar */}
+      <div className="border-t border-gray-700 p-4">
+        <button
+          onClick={toggleSidebar}
+          className={`
+            w-full p-2.5 rounded-lg text-gray-400 hover:text-white
+            bg-gray-700/50 hover:bg-gray-600 
+            transition-all duration-200 flex items-center justify-center
+            md:flex hidden group
+          `}
+        >
+          <ChevronDoubleLeftIcon className={`
+            h-5 w-5 transition-all duration-200
+            ${isCollapsed ? 'rotate-180' : ''}
+            group-hover:scale-110
+          `} />
+          {!isCollapsed && (
+            <span className="ml-2 text-sm">Colapsar menú</span>
+          )}
+        </button>
+      </div>
+    </motion.div>
   );
 }; 

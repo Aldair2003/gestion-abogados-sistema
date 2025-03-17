@@ -396,8 +396,8 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
       >
         <div className="flex flex-col h-full" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700/50 -mx-6 -mt-4 px-6 pb-6 pt-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200 dark:border-gray-700/50 -mx-6 -mt-4 px-6 pb-6 pt-4 gap-4">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
               {persona.nombres} {persona.apellidos}
             </h2>
             <button
@@ -416,7 +416,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
           <div className="flex border-b border-gray-200 dark:border-gray-700/50 -mx-6 px-6">
             <button
               onClick={() => setActiveTab('info')}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-all duration-200 ${
+              className={`flex-1 px-4 sm:px-6 py-4 text-sm font-medium transition-all duration-200 ${
                 activeTab === 'info'
                   ? isDarkMode
                     ? 'text-white border-b-2 border-primary-400 bg-[#1a2234]'
@@ -430,7 +430,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('docs')}
-              className={`flex-1 px-6 py-4 text-sm font-medium transition-all duration-200 ${
+              className={`flex-1 px-4 sm:px-6 py-4 text-sm font-medium transition-all duration-200 ${
                 activeTab === 'docs'
                   ? isDarkMode
                     ? 'text-white border-b-2 border-primary-400 bg-[#1a2234]'
@@ -445,7 +445,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
           </div>
 
           {/* Content */}
-          <div className="-mx-6 px-6 py-4">
+          <div className="-mx-6 px-4 sm:px-6 py-4">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <div className={`animate-spin rounded-full h-8 w-8 border-2 ${
@@ -461,7 +461,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                     Información Básica
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className={`flex items-center px-4 py-3 rounded-xl ${
                       isDarkMode 
                         ? 'bg-[#1a2234] text-white' 
@@ -518,7 +518,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
                     Información Adicional
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className={`px-4 py-3 rounded-xl ${
                       isDarkMode 
                         ? 'bg-[#1a2234] text-white' 
@@ -555,7 +555,7 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                       return (
                         <div 
                           key={doc}
-                          className={`flex items-center justify-between px-3 py-2 rounded-lg ${
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between px-3 py-2 rounded-lg gap-3 ${
                             isDarkMode 
                               ? 'bg-[#1a2234] text-white' 
                               : 'bg-white text-gray-900 shadow-sm border border-gray-200'
@@ -572,14 +572,14 @@ const DocumentosModal: React.FC<DocumentosModalProps> = ({
                                   {docStatus.label}
                                 </span>
                                 {docStatus.documento && (
-                                  <span className="truncate max-w-[150px] text-gray-500 dark:text-gray-400">
+                                  <span className="hidden sm:inline truncate max-w-[150px] text-gray-500 dark:text-gray-400">
                                     • {docStatus.documento.filename}
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 justify-end">
                             {docStatus.documento ? (
                               <>
                                 <button

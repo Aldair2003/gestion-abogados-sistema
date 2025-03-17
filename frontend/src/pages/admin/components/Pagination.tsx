@@ -25,7 +25,7 @@ export const Pagination = ({
   // Función para generar el rango de páginas a mostrar
   const getPageRange = () => {
     const range = [];
-    const maxVisiblePages = 5;
+    const maxVisiblePages = window.innerWidth < 640 ? 3 : 5; // Menos páginas visibles en móvil
     let start = Math.max(1, validCurrentPage - Math.floor(maxVisiblePages / 2));
     let end = Math.min(validTotalPages, start + maxVisiblePages - 1);
 
@@ -47,39 +47,50 @@ export const Pagination = ({
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex items-center justify-between px-6 py-4 bg-white dark:bg-[#172133]
+      className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 bg-white dark:bg-[#172133]
                  border-t border-gray-200/50 dark:border-gray-700/30 rounded-b-2xl"
     >
       {/* Vista móvil */}
-      <div className="flex-1 flex justify-between sm:hidden">
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onPageChange(validCurrentPage - 1)}
-          disabled={validCurrentPage === 1}
-          className="relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-xl
-                   text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1d2842]
-                   border border-gray-300/50 dark:border-gray-700/50
-                   hover:bg-gray-50 dark:hover:bg-[#1d2842]/80
-                   disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-all duration-200 shadow-sm"
-        >
-          Anterior
-        </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => onPageChange(validCurrentPage + 1)}
-          disabled={validCurrentPage === validTotalPages}
-          className="relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-xl
-                   text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1d2842]
-                   border border-gray-300/50 dark:border-gray-700/50
-                   hover:bg-gray-50 dark:hover:bg-[#1d2842]/80
-                   disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-all duration-200 shadow-sm"
-        >
-          Siguiente
-        </motion.button>
+      <div className="flex flex-col sm:hidden w-full space-y-3">
+        <div className="flex justify-between items-center">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onPageChange(validCurrentPage - 1)}
+            disabled={validCurrentPage === 1}
+            className="relative inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-xl
+                     text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1d2842]
+                     border border-gray-300/50 dark:border-gray-700/50
+                     hover:bg-gray-50 dark:hover:bg-[#1d2842]/80
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     transition-all duration-200 shadow-sm"
+          >
+            <ChevronLeftIcon className="h-4 w-4 mr-1" />
+            Anterior
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onPageChange(validCurrentPage + 1)}
+            disabled={validCurrentPage === validTotalPages}
+            className="relative inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-xl
+                     text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1d2842]
+                     border border-gray-300/50 dark:border-gray-700/50
+                     hover:bg-gray-50 dark:hover:bg-[#1d2842]/80
+                     disabled:opacity-50 disabled:cursor-not-allowed
+                     transition-all duration-200 shadow-sm"
+          >
+            Siguiente
+            <ChevronRightIcon className="h-4 w-4 ml-1" />
+          </motion.button>
+        </div>
+        <div className="flex justify-center">
+          <p className="text-xs text-gray-700 dark:text-gray-300">
+            Página <span className="font-medium text-gray-900 dark:text-white">{validCurrentPage}</span>
+            {' '}de{' '}
+            <span className="font-medium text-gray-900 dark:text-white">{validTotalPages}</span>
+          </p>
+        </div>
       </div>
 
       {/* Vista desktop */}
@@ -97,21 +108,21 @@ export const Pagination = ({
         </div>
 
         <div>
-          <nav className="relative z-0 inline-flex gap-2" aria-label="Pagination">
+          <nav className="relative z-0 inline-flex gap-1.5 sm:gap-2" aria-label="Pagination">
             {/* Botón Anterior */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => onPageChange(validCurrentPage - 1)}
               disabled={validCurrentPage === 1}
-              className="relative inline-flex items-center p-2 rounded-lg
+              className="relative inline-flex items-center p-1.5 sm:p-2 rounded-lg
                        text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1d2842]
                        border border-gray-300/50 dark:border-gray-700/50
                        hover:bg-gray-50 dark:hover:bg-[#1d2842]/80
                        disabled:opacity-50 disabled:cursor-not-allowed
                        transition-all duration-200 shadow-sm"
             >
-              <ChevronLeftIcon className="h-5 w-5" />
+              <ChevronLeftIcon className="h-4 w-4 sm:h-5 sm:w-5" />
             </motion.button>
 
             {/* Números de página */}
@@ -121,7 +132,7 @@ export const Pagination = ({
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => onPageChange(pageNum)}
-                className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg
+                className={`relative inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 text-sm font-medium rounded-lg
                           shadow-sm transition-all duration-200
                           ${validCurrentPage === pageNum
                             ? 'z-10 bg-primary-600 dark:bg-primary-500 text-white border border-primary-600 dark:border-primary-500'
@@ -138,14 +149,14 @@ export const Pagination = ({
               whileTap={{ scale: 0.95 }}
               onClick={() => onPageChange(validCurrentPage + 1)}
               disabled={validCurrentPage === validTotalPages}
-              className="relative inline-flex items-center p-2 rounded-lg
+              className="relative inline-flex items-center p-1.5 sm:p-2 rounded-lg
                        text-gray-500 dark:text-gray-400 bg-white dark:bg-[#1d2842]
                        border border-gray-300/50 dark:border-gray-700/50
                        hover:bg-gray-50 dark:hover:bg-[#1d2842]/80
                        disabled:opacity-50 disabled:cursor-not-allowed
                        transition-all duration-200 shadow-sm"
             >
-              <ChevronRightIcon className="h-5 w-5" />
+              <ChevronRightIcon className="h-4 w-4 sm:h-5 sm:w-5" />
             </motion.button>
           </nav>
         </div>

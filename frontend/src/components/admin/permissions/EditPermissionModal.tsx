@@ -330,21 +330,25 @@ export const EditPermissionModal = ({ isOpen, onClose, permission, onSave, type 
             </label>
             <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
               <div className="flex items-center">
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900 
-                              flex items-center justify-center text-primary-600 dark:text-primary-400 font-medium overflow-hidden">
-                  {permission.user.photoUrl ? (
-                    <img
-                      src={getPhotoUrl(permission.user.photoUrl)}
-                      alt={permission.user.nombre}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(permission.user.nombre || 'U')}&background=6366f1&color=fff`;
-                      }}
-                    />
-                  ) : (
-                    <span>{permission.user.nombre[0].toUpperCase()}</span>
-                  )}
+                <div className="relative h-10 w-10 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
+                              ring-2 ring-primary-500/20 dark:ring-primary-500/30">
+                  {(() => {
+                    return permission.user.photoUrl ? (
+                      <img
+                        src={getPhotoUrl(permission.user.photoUrl)}
+                        alt={permission.user.nombre}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(permission.user.nombre || 'U')}&background=6366f1&color=fff`;
+                        }}
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-[#4F46E5] text-white font-medium">
+                        {(permission.user.nombre?.[0] || 'U').toUpperCase()}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">

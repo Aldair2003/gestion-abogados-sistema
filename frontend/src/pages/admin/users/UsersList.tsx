@@ -63,7 +63,7 @@ export const UsersList = () => {
     lastLoginStart: null,
     lastLoginEnd: null,
     page: 1,
-    limit: 10,
+    limit: 5,
     sortField: 'createdAt',
     sortDirection: 'desc'
   });
@@ -72,7 +72,7 @@ export const UsersList = () => {
     currentPage: 1,
     totalPages: 1,
     totalItems: 0,
-    itemsPerPage: 10
+    itemsPerPage: 5
   });
   const [userToDeactivate, setUserToDeactivate] = useState<number | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -387,7 +387,7 @@ export const UsersList = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-[#0f172a]">
-      <div className="max-w-[2000px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-[2000px] mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
         {/* Header con estadísticas y botones */}
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
@@ -395,37 +395,37 @@ export const UsersList = () => {
           transition={{ duration: 0.3 }}
           className="bg-white dark:bg-[#1e293b]/90 rounded-2xl shadow-lg
                     border border-gray-200 dark:border-gray-700/30
-                    backdrop-blur-md p-6 lg:p-8"
+                    backdrop-blur-md p-4 sm:p-6 lg:p-8"
         >
           {/* Header y Acciones */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 sm:gap-6">
             <div className="space-y-1">
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl shadow-lg shadow-primary-500/20">
-                  <TableCellsIcon className="h-6 w-6 lg:h-8 lg:w-8 text-white" />
+                  <TableCellsIcon className="h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 text-white" />
                 </div>
                 Gestión de Usuarios
               </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                 Administra los usuarios del sistema, sus roles y permisos
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleExport('excel')}
-                className="inline-flex items-center px-4 py-2.5
+                className="inline-flex items-center px-3 sm:px-4 py-2 sm:py-2.5
                          bg-emerald-50 dark:bg-emerald-500/10
                          text-emerald-700 dark:text-emerald-400
                          hover:bg-emerald-100 dark:hover:bg-emerald-500/20
-                         rounded-xl text-sm font-medium
+                         rounded-xl text-xs sm:text-sm font-medium
                          border border-emerald-200/50 dark:border-emerald-500/20
                          shadow-sm hover:shadow-md
                          transition-all duration-200"
               >
-                <ExcelIcon className="h-5 w-5 mr-2" />
+                <ExcelIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
                 Excel
               </motion.button>
 
@@ -433,16 +433,16 @@ export const UsersList = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleExport('pdf')}
-                className="inline-flex items-center px-4 py-2.5
+                className="inline-flex items-center px-3 sm:px-4 py-2 sm:py-2.5
                          bg-red-50 dark:bg-red-500/10
                          text-red-700 dark:text-red-400
                          hover:bg-red-100 dark:hover:bg-red-500/20
-                         rounded-xl text-sm font-medium
+                         rounded-xl text-xs sm:text-sm font-medium
                          border border-red-200/50 dark:border-red-500/20
                          shadow-sm hover:shadow-md
                          transition-all duration-200"
               >
-                <PDFIcon className="h-5 w-5 mr-2" />
+                <PDFIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
                 PDF
               </motion.button>
 
@@ -450,40 +450,40 @@ export const UsersList = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={openCreateModal}
-                className="inline-flex items-center px-4 py-2.5
+                className="inline-flex items-center px-3 sm:px-4 py-2 sm:py-2.5
                          bg-primary-500 dark:bg-primary-500
-                         text-white font-medium rounded-xl
+                         text-white font-medium rounded-xl text-xs sm:text-sm
                          shadow-lg shadow-primary-500/20
                          hover:shadow-xl hover:shadow-primary-500/30
                          hover:bg-primary-600 dark:hover:bg-primary-600
                          transition-all duration-200"
               >
-                <CreateUserIcon className="h-5 w-5 mr-2" />
+                <CreateUserIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-1.5 sm:mr-2" />
                 Nuevo Usuario
               </motion.button>
             </div>
           </div>
 
           {/* Estadísticas */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mt-6 lg:mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mt-4 sm:mt-6 lg:mt-8">
             <motion.div 
               whileHover={{ scale: 1.02 }}
               className="bg-white dark:bg-[#1e293b] 
-                       rounded-xl p-4 lg:p-6 
+                       rounded-xl p-3 sm:p-4 lg:p-6 
                        border border-primary-200 dark:border-primary-500/20
                        hover:border-primary-300 dark:hover:border-primary-500/30
                        hover:shadow-lg hover:shadow-primary-500/10
                        transition-all duration-300">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl
                             shadow-lg shadow-primary-500/20">
-                  <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-100">
                     Total Usuarios
                   </p>
-                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-0.5 sm:mt-1">
                     {pagination.totalItems}
                   </p>
                 </div>
@@ -493,21 +493,21 @@ export const UsersList = () => {
             <motion.div 
               whileHover={{ scale: 1.02 }}
               className="bg-white dark:bg-[#1e293b]
-                       rounded-xl p-4 lg:p-6 
+                       rounded-xl p-3 sm:p-4 lg:p-6 
                        border border-green-200 dark:border-green-500/20
                        hover:border-green-300 dark:hover:border-green-500/30
                        hover:shadow-lg hover:shadow-green-500/10
                        transition-all duration-300">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-xl
                             shadow-lg shadow-green-500/20">
-                  <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-100">
                     Usuarios Activos
                   </p>
-                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-0.5 sm:mt-1">
                     {users.filter(u => u.isActive).length}
                   </p>
                 </div>
@@ -517,21 +517,21 @@ export const UsersList = () => {
             <motion.div 
               whileHover={{ scale: 1.02 }}
               className="bg-white dark:bg-[#1e293b]
-                       rounded-xl p-4 lg:p-6 
+                       rounded-xl p-3 sm:p-4 lg:p-6 
                        border border-purple-200 dark:border-purple-500/20
                        hover:border-purple-300 dark:hover:border-purple-500/30
                        hover:shadow-lg hover:shadow-purple-500/10
                        transition-all duration-300">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl
                             shadow-lg shadow-purple-500/20">
-                  <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-100">
                     Administradores
                   </p>
-                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-0.5 sm:mt-1">
                     {users.filter(u => u.rol === 'ADMIN').length}
                   </p>
                 </div>
@@ -541,21 +541,21 @@ export const UsersList = () => {
             <motion.div 
               whileHover={{ scale: 1.02 }}
               className="bg-white dark:bg-[#1e293b]
-                       rounded-xl p-4 lg:p-6 
+                       rounded-xl p-3 sm:p-4 lg:p-6 
                        border border-blue-200 dark:border-blue-500/20
                        hover:border-blue-300 dark:hover:border-blue-500/30
                        hover:shadow-lg hover:shadow-blue-500/10
                        transition-all duration-300">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl
                             shadow-lg shadow-blue-500/20">
-                  <UsersIcon className="h-6 w-6 text-white" />
+                  <UsersIcon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-100">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-100">
                     Colaboradores
                   </p>
-                  <p className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mt-0.5 sm:mt-1">
                     {users.filter(u => u.rol === 'COLABORADOR').length}
                   </p>
                 </div>
@@ -569,7 +569,7 @@ export const UsersList = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.1 }}
-          className="mt-6"
+          className="mt-4 sm:mt-6"
         >
           <MemoizedUsersFilters 
             filters={filters} 
@@ -582,7 +582,7 @@ export const UsersList = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3, delay: 0.2 }}
-          className="mt-6 bg-white dark:bg-[#1e293b] rounded-2xl shadow-lg overflow-hidden
+          className="mt-4 sm:mt-6 bg-white dark:bg-[#1e293b] rounded-2xl shadow-lg overflow-hidden
                     border border-gray-200 dark:border-gray-700/30"
         >
           <MemoizedUsersTable 
@@ -598,7 +598,7 @@ export const UsersList = () => {
         </motion.div>
 
         {/* Paginación */}
-        <div className="mt-6">
+        <div className="mt-4 sm:mt-6">
           <MemoizedPagination
             currentPage={pagination.currentPage}
             totalPages={pagination.totalPages}

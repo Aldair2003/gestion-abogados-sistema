@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { PlusIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { AssignPermissionModal } from './AssignPermissionModal';
 import { EditPermissionModal } from './EditPermissionModal';
-import { Dialog } from '@headlessui/react';
 import { toast } from 'react-hot-toast';
 import { permissionService } from '../../../services/permissionService';
 import { User, Persona, PersonaPermission, PermissionData } from '../../../types/permissions';
@@ -122,7 +121,7 @@ export const PersonaPermissionsPanel = () => {
   return (
     <div className="space-y-6">
       {/* Header con botón de asignar */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">
             Permisos de Personas
@@ -134,9 +133,9 @@ export const PersonaPermissionsPanel = () => {
         
         <button
           onClick={() => setShowAssignModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent 
+          className="inline-flex items-center justify-center px-4 py-2 border border-transparent 
                    rounded-lg shadow-sm text-sm font-medium text-white 
-                   bg-primary-600 hover:bg-primary-700 
+                   bg-primary-600 hover:bg-primary-700 w-full sm:w-auto
                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
         >
           <PlusIcon className="h-5 w-5 mr-2" />
@@ -150,19 +149,19 @@ export const PersonaPermissionsPanel = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Colaborador
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Persona
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Permisos
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Última Modificación
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-3 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -170,75 +169,109 @@ export const PersonaPermissionsPanel = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     Cargando permisos...
                   </td>
                 </tr>
               ) : permissions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={5} className="px-3 sm:px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                     No hay permisos asignados
                   </td>
                 </tr>
               ) : (
                 permissions.map((permission) => (
-                  <tr key={permission.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <tr key={permission.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="px-3 sm:px-6 py-4">
                       <div className="flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900 
-                                    flex items-center justify-center text-primary-600 dark:text-primary-400 font-medium">
-                          {permission.user.nombre[0].toUpperCase()}
+                        <div className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-500/10
+                                    ring-2 ring-primary-500/20 dark:ring-primary-500/30">
+                          {(() => {
+                            return permission.user.photoUrl ? (
+                              <img
+                                src={getPhotoUrl(permission.user.photoUrl)}
+                                alt={permission.user.nombre}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(permission.user.nombre || 'U')}&background=6366f1&color=fff`;
+                                }}
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center bg-[#4F46E5] text-white font-medium">
+                                {(permission.user.nombre?.[0] || 'U').toUpperCase()}
+                              </div>
+                            );
+                          })()}
                         </div>
-                        <div className="ml-4">
-                          <div className="font-medium">{permission.user.nombre}</div>
-                          <div className="text-gray-500 dark:text-gray-400">{permission.user.email}</div>
+                        <div className="ml-3 sm:ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[120px] sm:max-w-none">
+                            {permission.user.nombre}
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate max-w-[120px] sm:max-w-none">
+                            {permission.user.email}
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      <div className="font-medium">{permission.persona.nombre}</div>
-                      <div className="text-gray-500 dark:text-gray-400">Cédula: {permission.persona.cedula}</div>
+                    <td className="px-3 sm:px-6 py-4">
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[120px] sm:max-w-none">
+                          {permission.persona.nombre}
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate max-w-[120px] sm:max-w-none">
+                          Cédula: {permission.persona.cedula}
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      <div className="flex gap-2">
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {permission.permissions.view && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
                             Ver
                           </span>
                         )}
                         {permission.permissions.edit && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                             Editar
                           </span>
                         )}
                         {permission.permissions.delete && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
                             Eliminar
                           </span>
                         )}
                         {permission.permissions.createExpedientes && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          <span className="inline-flex items-center px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
                             Crear Expedientes
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <td className="hidden sm:table-cell px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       Hace 2 días
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
-                        onClick={() => handleEditPermission(permission)}
-                        className="text-primary-600 hover:text-primary-900 mr-4"
-                      >
-                        Editar
-                      </button>
-                      <button 
-                        onClick={() => handleRevokePermission(permission.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Revocar
-                      </button>
+                    <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditPermission(permission)}
+                          className="inline-flex items-center p-1.5 sm:p-2 rounded-lg transition-colors
+                                   text-blue-600 hover:text-blue-700 hover:bg-blue-50
+                                   dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/50"
+                        >
+                          <PencilIcon className="w-4 h-4" />
+                          <span className="hidden sm:inline ml-1">Editar</span>
+                        </button>
+                        <button
+                          onClick={() => handleRevokePermission(permission.id)}
+                          className="inline-flex items-center p-1.5 sm:p-2 rounded-lg transition-colors
+                                   text-red-600 hover:text-red-700 hover:bg-red-50
+                                   dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/50"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                          <span className="hidden sm:inline ml-1">Revocar</span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

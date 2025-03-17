@@ -505,7 +505,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                       transition-all duration-200"
           >
             <CreateUserIcon className="w-5 h-5 mr-2 text-white" />
-            <span className="font-medium">Registrar Persona</span>
+            <span className="font-medium">na</span>
           </button>
         </div>
         <div className={`p-3 rounded-lg shadow-sm ${
@@ -563,13 +563,13 @@ const PersonasList: React.FC<PersonasListProps> = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto -mt-8">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-4">
+    <div className="max-w-7xl mx-auto -mt-8 px-4 sm:px-6 lg:px-8">
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl blur-xl"></div>
-              <div className={`relative w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden ${
+              <div className={`relative w-16 sm:w-20 h-16 sm:h-20 rounded-2xl flex items-center justify-center overflow-hidden ${
                 isDarkMode 
                   ? 'bg-[#1a2234] ring-1 ring-white/10' 
                   : 'bg-white ring-1 ring-black/5 shadow-xl shadow-gray-200/20'
@@ -577,18 +577,18 @@ const PersonasList: React.FC<PersonasListProps> = ({
                 <img 
                   src={personasIcon}
                   alt="Cantón" 
-                  className="w-16 h-16 object-contain"
+                  className="w-12 sm:w-16 h-12 sm:h-16 object-contain"
                 />
               </div>
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className={`text-2xl font-bold ${
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <h1 className={`text-xl sm:text-2xl font-bold ${
                   isDarkMode ? 'text-gray-100' : 'text-gray-900'
                 }`}>
                   {cantonNombre}
                 </h1>
-                <div className={`px-3 py-1 rounded-lg text-sm font-medium ${
+                <div className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
                   isDarkMode 
                     ? 'bg-[#1a2234] text-gray-300 border border-gray-700/50' 
                     : 'bg-white text-gray-600 border border-gray-200 shadow-sm'
@@ -605,8 +605,8 @@ const PersonasList: React.FC<PersonasListProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="grid grid-cols-3 gap-3 flex-1">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-3 gap-3 flex-1">
             <div className={`p-3 rounded-lg ${
               isDarkMode 
                 ? 'bg-[#1a2234] border border-gray-700/50' 
@@ -661,7 +661,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center px-4 py-2.5
+            className="inline-flex items-center justify-center px-4 py 
                       bg-primary-500 dark:bg-primary-500
                       text-white font-medium rounded-xl
                       shadow-lg shadow-primary-500/20
@@ -682,7 +682,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
               ? 'bg-[#1a2234] border border-gray-700/50' 
               : 'bg-white border border-gray-200'
           }`}>
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
@@ -718,7 +718,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
               </button>
             </div>
 
-            <AnimatePresence>
+            <AnimatePresence mode="sync">
               {showFilters && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
@@ -808,13 +808,9 @@ const PersonasList: React.FC<PersonasListProps> = ({
         </div>
 
         {personas.length > 0 ? (
-          <div className={`space-y-3 ${
-            isDarkMode 
-              ? 'bg-transparent' 
-              : 'bg-transparent'
-          }`}>
+          <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3">
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="sync">
                 {filteredPersonas.map((persona: Persona) => (
                   <motion.div
                     key={persona.id}
@@ -835,9 +831,9 @@ const PersonasList: React.FC<PersonasListProps> = ({
                     }`} />
 
                     <div className="p-4">
-                      <div className="flex items-center justify-between pl-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between pl-3 gap-4">
                         <div 
-                          className="flex items-center space-x-3 flex-1 cursor-pointer"
+                          className="flex items-start sm:items-center space-x-3 flex-1 cursor-pointer"
                           onClick={() => handlePersonaClick(persona)}
                         >
                           <div className={`relative flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden ${
@@ -883,7 +879,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                           </div>
                         </div>
                         
-                        <div className="flex items-center space-x-1.5">
+                        <div className="flex items-center space-x-1.5 ml-16 sm:ml-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -932,7 +928,7 @@ const PersonasList: React.FC<PersonasListProps> = ({
                       </div>
 
                       <div 
-                        className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 pl-16 cursor-pointer"
+                        className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pl-16 cursor-pointer"
                         onClick={() => handlePersonaClick(persona)}
                       >
                         <div className={`flex items-center px-4 py-2 rounded-lg border group-hover:border-gray-300 ${

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLanguage } from '../../context/LanguageContext';
-
+import { EyeIcon, EyeSlashIcon } from '../icons/CustomIcons';
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, 'Campo requerido'),
@@ -16,27 +16,18 @@ const passwordSchema = z.object({
 
 type FormValues = z.infer<typeof passwordSchema>;
 
-interface Session {
-  id: number;
-  device: string;
-  location: string;
-  lastAccess: string;
-  isCurrentSession: boolean;
-}
-
 interface SecuritySettingsProps {
   onPasswordChange: (currentPassword: string, newPassword: string) => Promise<void>;
-  sessions: Session[];
-  onSessionRevoke: (sessionId: number) => Promise<void>;
 }
 
 export const SecuritySettings: React.FC<SecuritySettingsProps> = ({
-  onPasswordChange,
-  sessions,
-  onSessionRevoke
+  onPasswordChange
 }) => {
   const { t } = useLanguage();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormValues>({
     resolver: zodResolver(passwordSchema)
@@ -53,122 +44,118 @@ export const SecuritySettings: React.FC<SecuritySettingsProps> = ({
   };
 
   return (
-    <div className="space-y-8">
-      {/* Cambio de contraseña */}
-      <div>
-        <h3 className="text-xl font-serif font-semibold text-gray-900 dark:text-white mb-2">
-          {t('settings.security.password')}
-        </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          {t('settings.security.passwordDescription')}
-        </p>
+    <div className="space-y-8 sm:space-y-10">
+      <section>
+        <div className="mb-4 sm:mb-6">
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
+            {t('settings.security.password')}
+          </h3>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            {t('settings.security.passwordDescription')}
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('settings.security.currentPassword')}
-            </label>
-            <input
-              type="password"
-              {...register('currentPassword')}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 
-                       bg-white dark:bg-[#1e2330] text-gray-900 dark:text-white
-                       focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-500/50 
-                       focus:border-transparent outline-none transition-all duration-200"
-            />
-            {errors.currentPassword && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.currentPassword.message}</p>
-            )}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {t('settings.security.currentPassword')}
+              </label>
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  id="currentPassword"
+                  {...register('currentPassword')}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white pr-10"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-500"
+                >
+                  {showCurrentPassword ? (
+                    <EyeSlashIcon className="h-5 w-5 text-primary-600" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {errors.currentPassword && (
+                <p className="mt-1 text-xs text-red-500">{errors.currentPassword.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                {t('settings.security.newPassword')}
+              </label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  id="newPassword"
+                  {...register('newPassword')}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white pr-10"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-500"
+                >
+                  {showNewPassword ? (
+                    <EyeSlashIcon className="h-5 w-5 text-primary-600" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
+              {errors.newPassword && (
+                <p className="mt-1 text-xs text-red-500">{errors.newPassword.message}</p>
+              )}
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              {t('settings.security.newPassword')}
-            </label>
-            <input
-              type="password"
-              {...register('newPassword')}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 
-                       bg-white dark:bg-[#1e2330] text-gray-900 dark:text-white
-                       focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-500/50 
-                       focus:border-transparent outline-none transition-all duration-200"
-            />
-            {errors.newPassword && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.newPassword.message}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
               {t('settings.security.confirmPassword')}
             </label>
-            <input
-              type="password"
-              {...register('confirmPassword')}
-              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 
-                       bg-white dark:bg-[#1e2330] text-gray-900 dark:text-white
-                       focus:ring-2 focus:ring-primary-500 dark:focus:ring-primary-500/50 
-                       focus:border-transparent outline-none transition-all duration-200"
-            />
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                id="confirmPassword"
+                {...register('confirmPassword')}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white pr-10"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-500"
+              >
+                {showConfirmPassword ? (
+                  <EyeSlashIcon className="h-5 w-5 text-primary-600" />
+                ) : (
+                  <EyeIcon className="h-5 w-5" />
+                )}
+              </button>
+            </div>
             {errors.confirmPassword && (
-              <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword.message}</p>
+              <p className="mt-1 text-xs text-red-500">{errors.confirmPassword.message}</p>
             )}
           </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 
-                     dark:bg-primary-500 dark:hover:bg-primary-600
-                     text-white font-medium rounded-lg 
-                     transition-colors duration-200 
-                     disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? t('message.updating') : t('settings.security.changePassword')}
-          </button>
-        </form>
-      </div>
-
-      {/* Sesiones activas */}
-      <div>
-        <h3 className="text-xl font-serif font-semibold text-gray-900 dark:text-white mb-2">
-          {t('settings.security.sessions')}
-        </h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          {t('settings.security.sessionsDescription')}
-        </p>
-
-        <div className="space-y-3">
-          {sessions.map((session) => (
-            <div
-              key={session.id}
-              className="p-4 rounded-lg bg-gray-100 dark:bg-[#1e2330] 
-                       border border-gray-200 dark:border-gray-700/50"
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed dark:focus:ring-offset-gray-800"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white">
-                    {session.device}
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {session.location} • {session.lastAccess}
-                  </p>
-                </div>
-                {!session.isCurrentSession && (
-                  <button
-                    onClick={() => onSessionRevoke(session.id)}
-                    className="px-3 py-1 text-sm font-medium text-red-600 hover:text-red-700 
-                             dark:text-red-500 dark:hover:text-red-400
-                             transition-colors duration-200"
-                  >
-                    {t('settings.security.revokeAccess')}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+              {isSubmitting ? t('message.updating') : t('settings.security.changePassword')}
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }; 

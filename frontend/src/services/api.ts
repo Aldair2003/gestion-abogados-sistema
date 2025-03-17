@@ -65,34 +65,45 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Si el error es 401 y no es una petición de refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // No intentar renovar el token si:
+    // 1. Es una petición de logout
+    // 2. Ya se intentó renovar
+    // 3. No hay token de refresco
+    // 4. La respuesta no es 401
+    if (
+      error.response?.status !== 401 ||
+      originalRequest._retry ||
+      originalRequest.url === '/auth/logout' ||
+      !localStorage.getItem('refreshToken')
+    ) {
+      return Promise.reject(error);
+    }
+
+    try {
+      console.log('[API] Intentando renovar token');
       originalRequest._retry = true;
       
-      try {
-        console.log('[API] Intentando renovar token');
-        const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = localStorage.getItem('refreshToken');
+      const response = await api.post('/users/refresh-token', { refreshToken });
+      
+      if (response.data?.token) {
+        console.log('[API] Token renovado exitosamente');
+        localStorage.setItem('token', response.data.token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
         
-        if (!refreshToken) {
-          throw new Error('No hay refresh token disponible');
-        }
-
-        const response = await api.post('/users/refresh-token', { refreshToken });
-        
-        if (response.data?.token) {
-          console.log('[API] Token renovado exitosamente');
-          localStorage.setItem('token', response.data.token);
-          api.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-          
-          // Reintentar la petición original con el nuevo token
-          originalRequest.headers['Authorization'] = `Bearer ${response.data.token}`;
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        console.error('[API] Error al renovar token:', refreshError);
-        // Limpiar tokens y recargar la página
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
+        // Reintentar la petición original con el nuevo token
+        originalRequest.headers['Authorization'] = `Bearer ${response.data.token}`;
+        return api(originalRequest);
+      }
+    } catch (refreshError) {
+      console.error('[API] Error al renovar token:', refreshError);
+      // Limpiar tokens
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      delete api.defaults.headers.common['Authorization'];
+      
+      // Solo redirigir si no estamos ya en /login
+      if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
     }

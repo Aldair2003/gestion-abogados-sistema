@@ -46,29 +46,8 @@ export const SettingsPage: React.FC = () => {
     document.documentElement.classList.add(`text-${size}`);
   };
 
-  const mockSessions = [
-    {
-      id: 1,
-      device: 'Microsoft Edge',
-      location: 'Portoviejo, Ecuador',
-      lastAccess: 'Hace 2 minutos',
-      isCurrentSession: true
-    },
-    {
-      id: 2,
-      device: 'Brave Browser',
-      location: 'Portoviejo, Ecuador',
-      lastAccess: 'Hace 2 días',
-      isCurrentSession: false
-    }
-  ];
-
   const handlePasswordChange = async (currentPassword: string, newPassword: string) => {
     // Implementar la lógica para cambiar la contraseña
-  };
-
-  const handleSessionRevoke = async (sessionId: number) => {
-    // Implementar la lógica para revocar la sesión
   };
 
   return (
@@ -137,8 +116,6 @@ export const SettingsPage: React.FC = () => {
                 {activeTab === 'security' && (
                   <SecuritySettings
                     onPasswordChange={handlePasswordChange}
-                    sessions={mockSessions}
-                    onSessionRevoke={handleSessionRevoke}
                   />
                 )}
               </motion.div>
